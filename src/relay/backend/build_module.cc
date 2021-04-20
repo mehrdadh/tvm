@@ -256,6 +256,7 @@ class RelayBuildModule : public runtime::ModuleNode {
    */
   IRModule Optimize(IRModule relay_module, const TargetsMap& targets,
                     const std::unordered_map<std::string, runtime::NDArray>& params) {
+    LOG(ERROR) << "mehrdad: Optimize";
     ICHECK(relay_module.defined()) << "The IRModule must be defined for the Relay compiler.";
 
     if (params.size()) {
@@ -340,6 +341,7 @@ class RelayBuildModule : public runtime::ModuleNode {
     }
 
     // Fuse the operations if it is needed.
+    LOG(ERROR) << "mehrdad: fuseOps";
     relay_module = transform::FuseOps()(relay_module);
 
     // Do layout rewrite for auto-scheduler.
@@ -473,6 +475,7 @@ class RelayBuildModule : public runtime::ModuleNode {
 
     // Relay IRModule -> IRModule optimizations.
     relay_module = Optimize(relay_module, targets_, params);
+    LOG(ERROR) << "mehrdad: optimize done";
     // Get the updated function.
     auto func = Downcast<Function>(relay_module->Lookup("main"));
 
@@ -484,6 +487,7 @@ class RelayBuildModule : public runtime::ModuleNode {
     ret_.graph_json = graph_codegen_->GetJSON();
     ret_.params = graph_codegen_->GetParams();
 
+    LOG(ERROR) << "mehrdad: before GetIRModule"; 
     auto lowered_funcs = graph_codegen_->GetIRModule();
 
     // Generate a placeholder function that attaches linked params as its arguments.

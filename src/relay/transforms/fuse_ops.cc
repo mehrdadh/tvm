@@ -153,6 +153,7 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
   explicit Creator(support::Arena* arena) : arena_(arena) {}
 
   IndexedForwardGraph Prepare(const Expr& body) {
+    LOG(ERROR) << "mehrdad: prepare";
     this->Update(body, nullptr, kOpaque);
     this->VisitExpr(body);
     return std::move(graph_);
@@ -810,15 +811,19 @@ class FuseMutator : private MixedModeMutator {
  public:
   // Run the transform
   Expr Transform(const Expr& body, int fuse_opt_level, size_t max_fuse_depth) {
+    LOG(ERROR) << "mehrdad: FuseMutator";
     // setup the group map.
     auto graph = IndexedForwardGraph::Create(&arena_, body);
+    LOG(ERROR) << "mehrdad: create";
     auto groups = GraphPartitioner(&arena_, fuse_opt_level, max_fuse_depth).Partition(graph);
+    LOG(ERROR) << "mehrdad: partitioner";
     for (size_t nid = 0; nid < graph.post_dfs_order.size(); ++nid) {
       ICHECK(graph.post_dfs_order[nid]->ref != nullptr);
       gmap_[graph.post_dfs_order[nid]->ref] = groups[nid];
     }
     // The following line can be used for debug.
     // this->DebugDumpGroup(body);
+    LOG(ERROR) << "mehrdad: FuseMutator end";
     return this->Mutate(body);
   }
 
@@ -987,7 +992,7 @@ class FuseMutator : private MixedModeMutator {
       os << " /* group=" << group << " */";
       return os.str();
     });
-    LOG(INFO) << "Dump of group info:\n" << text;
+    LOG(ERROR) << "Dump of group info:\n" << text;
   }
 };
 

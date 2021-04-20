@@ -88,7 +88,11 @@ void LocalSession::CallFunc(RPCSession::PackedFuncHandle func, const TVMValue* a
 }
 
 void LocalSession::CopyToRemote(void* from_bytes, DLTensor* to, uint64_t nbytes) {
-  ICHECK_EQ(nbytes, GetDataSize(*to));
+  uint64_t tensor_total_size_bytes = static_cast<uint64_t>(GetDataSize(*to));
+  ICHECK_LE(to->byte_offset + nbytes, tensor_total_size_bytes)
+      << "CopyToRemote: overflow in tensor size: (byte_offset=" << to->byte_offset
+      << ", nbytes=" << nbytes << ", tensor_total_size=" << tensor_total_size_bytes << ")";
+
   DLTensor from;
   from.data = from_bytes;
   from.device = {kDLCPU, 0};
@@ -105,7 +109,11 @@ void LocalSession::CopyToRemote(void* from_bytes, DLTensor* to, uint64_t nbytes)
 }
 
 void LocalSession::CopyFromRemote(DLTensor* from, void* to_bytes, uint64_t nbytes) {
-  ICHECK_EQ(nbytes, GetDataSize(*from));
+  uint64_t tensor_total_size_bytes = static_cast<uint64_t>(GetDataSize(*from));
+  ICHECK_LE(from->byte_offset + nbytes, tensor_total_size_bytes)
+      << "CopyFromRemote: overflow in tensor size: (byte_offset=" << from->byte_offset
+      << ", nbytes=" << nbytes << ", tensor_total_size=" << tensor_total_size_bytes << ")";
+
   DLTensor to;
   to.data = to_bytes;
   to.device = {kDLCPU, 0};

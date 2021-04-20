@@ -685,3 +685,6 @@ def subtract(
 # register fuse pattern for qnn ops
 reg.register_pattern("qnn.quantize", OpPattern.OPAQUE)
 reg.register_pattern("qnn.dequantize", OpPattern.OPAQUE)
+# reg.register_pattern("qnn.requantize", OpPattern.OPAQUE)
+# reg.register_pattern("qnn.dense", OpPattern.OPAQUE)
+# reg.register_pattern("qnn.conv2d", OpPattern.OPAQUE)

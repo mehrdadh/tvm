@@ -114,6 +114,7 @@ class BuildModule(object):
         factory_module : tvm.relay.backend.graph_executor_factory.GraphExecutorFactoryModule
             The runtime factory for the TVM graph executor.
         """
+        import pdb; pdb.set_trace()
         target = _update_target(target)
         target, target_host = Target.check_and_update_host_consist(
             target, target_host, target_is_dict_key=False

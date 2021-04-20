@@ -338,6 +338,7 @@ Pattern ExprMutator::VisitPattern(const Pattern& p) { return p; }
 Type ExprMutator::VisitType(const Type& t) { return t; }
 
 void ExprVisitor::VisitExpr(const Expr& expr) {
+  LOG(ERROR) << "mehrdad: VisitExpr";
   auto it = visit_counter_.find(expr.get());
   if (it != visit_counter_.end()) {
     ++it->second;

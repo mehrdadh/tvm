@@ -133,10 +133,11 @@ class DebugResult(object):
         order = 0
         output_tensors = {}
         for node, time in zip(self._nodes_list, self._time_list):
+            # import pdb; pdb.set_trace()
             num_outputs = self.get_graph_node_output_num(node)
             for j in range(num_outputs):
                 order += time[0]
-                key = node["name"] + "_" + str(j) + "__" + str(order)
+                key = node["name"] + "___" + str(j) + "____" + str(order)
                 output_tensors[key] = self._output_tensor_list[eid]
                 eid += 1
 

@@ -64,7 +64,7 @@ def CanonicalizeOps():
     ret : tvm.transform.Pass
         The registered pass that canonicalizes QNN ops to Relay ops.
     """
-
+    print("python mehrdad")
     return relay.transform.Legalize("FTVMQnnCanonicalize")
 
 

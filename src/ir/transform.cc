@@ -241,6 +241,7 @@ PassProfile* PassProfile::Current() {
 
 IRModule Pass::operator()(IRModule mod) const {
   const PassNode* node = operator->();
+  LOG(ERROR) << "mehrdad: transform operator: " << node->Info()->name;
   ICHECK(node != nullptr);
   PassProfile::EnterPass(node->Info()->name);
   auto ret = node->operator()(std::move(mod));

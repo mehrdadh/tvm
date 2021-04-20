@@ -59,7 +59,7 @@ class AttrRegistryMapContainerMap {
     ICHECK(key.defined());
     const uint32_t idx = key->AttrRegistryIndex();
     ICHECK(idx < data_.size() && data_[idx].second != 0)
-        << "Attribute " << attr_name_ << " has not been registered for " << key->name;
+        << "Mehrdad: Attribute " << attr_name_ << " has not been registered for " << key->name;
     return data_[idx].first;
   }
   /*!

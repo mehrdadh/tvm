@@ -64,6 +64,7 @@ def pad(data, pad_before, pad_after=None, pad_value=0.0, name="PadInput"):
         else:
             dshape.append(dim)
     out_shape = tuple(ana.simplify(dshape[i] + pad_before[i] + pad_after[i]) for i in range(n))
+    import pdb; pdb.set_trace()
     pad_value = (
         pad_value
         if isinstance(pad_value, tvm.tir.PrimExpr)
@@ -84,7 +85,8 @@ def pad(data, pad_before, pad_after=None, pad_value=0.0, name="PadInput"):
             not_zero = tvm.tir.all(*not_zero)
             return tvm.tir.if_then_else(not_zero, data(*index_tuple), pad_value)
         return data(*index_tuple)
-
+    
+    pdb.set_trace()
     return te.compute(out_shape, _pad, name=name)
 
 

@@ -156,6 +156,8 @@ inline tvm::te::Tensor pad(const tvm::te::Tensor& t, const tvm::Array<tvm::PrimE
                            PrimExpr pad_value = PrimExpr(), std::string name = "T_pad",
                            std::string tag = kElementWise, std::string pad_mode = "constant",
                            const Array<PrimExpr>* dyn_output_shape = nullptr) {
+  LOG(ERROR) << "mehrdad: pad function, pad_value: " << pad_value;
+  LOG(ERROR) << "mehrdad: pad_mode: " << pad_mode;
   if (pad_after.size() < pad_before.size()) {
     for (size_t i = pad_after.size(); i < pad_before.size(); ++i) {
       pad_after.push_back(pad_before[i]);
