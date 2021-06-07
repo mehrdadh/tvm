@@ -387,6 +387,9 @@ def test_byoc_utvm(use_calculated_workspaces, target_options):
 
 
 def test_quant_mobilenet_tfl():
+    """Since in AOT we pass directly the output buffer from the user, in quantized networks sharing the output buffers is not possible.
+    This is because the output data type is int8 and the intermediate buffer are int32 or int16. We use mobilenet quantized to stress this
+    situation and verify that the output buffer sharing is disabled in AOT."""
     pytest.importorskip("tflite")
 
     import tvm.relay.testing.tf as tf_testing
@@ -410,6 +413,8 @@ def test_quant_mobilenet_tfl():
 
 @pytest.mark.parametrize("target_options", ["--unpacked-api=0", "--unpacked-api=1"])
 def test_transpose(target_options):
+    """Test that non-inpleaceable operations (e.g., transpose) do not happen in-place."""
+
     dtype = "float32"
     x = relay.var("x", shape=(10, 5), dtype=dtype)
     y = relay.var("y", shape=(10, 5), dtype=dtype)
