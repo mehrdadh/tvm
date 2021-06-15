@@ -30,8 +30,8 @@ from ._ffi import register_object, register_func, register_extension, get_global
 # top-level alias
 # tvm.runtime
 from .runtime.object import Object
-from .runtime.ndarray import context, cpu, gpu, opencl, cl, vulkan, metal, mtl
-from .runtime.ndarray import vpi, rocm, ext_dev, micro_dev, hexagon
+from .runtime.ndarray import device, cpu, cuda, gpu, opencl, cl, vulkan, metal, mtl
+from .runtime.ndarray import vpi, rocm, ext_dev, hexagon
 from .runtime import ndarray as nd
 
 # tvm.error
@@ -40,6 +40,7 @@ from . import error
 # tvm.ir
 from .ir import IRModule
 from .ir import transform
+from .ir import instrument
 from .ir import container
 from . import ir
 

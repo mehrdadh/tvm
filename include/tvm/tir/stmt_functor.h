@@ -27,7 +27,6 @@
 #define TVM_TIR_STMT_FUNCTOR_H_
 
 #include <tvm/node/functor.h>
-#include <tvm/runtime/container.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/expr_functor.h>
 #include <tvm/tir/stmt.h>
@@ -353,6 +352,14 @@ TVM_DLL Stmt Substitute(Stmt stmt, std::function<Optional<PrimExpr>(const Var& v
 TVM_DLL PrimExpr Substitute(PrimExpr expr, std::function<Optional<PrimExpr>(const Var& var)> vmap);
 
 /*!
+ * \brief Substitute the var specified by vmap.
+ * \param region The object whose vars are to be substituted
+ * \param vmap The map of new values.
+ * \return The result.
+ */
+TVM_DLL Array<Range> Substitute(const Array<Range>& region, const Map<Var, PrimExpr>& vmap);
+
+/*!
  * \brief Sugar for substitute via a given map.
  * \param input The input to be updated.
  * \param value_map The map of new values.
@@ -386,6 +393,15 @@ inline T Substitute(T input, const std::unordered_map<const VarNode*, PrimExpr>&
   return Substitute(std::move(input), vmap);
 }
 
+/*!
+ * \brief Recursively visit the IR in pre DFS order node, apply fvisit.
+ * If fvisit returns false, it won't visit the children of the node.
+ * \param stmt_or_expr The ir to be visited.
+ * \param fvisit The visitor function to be applied. If fvisit returns false, it won't visit the
+ * children of the node
+ */
+TVM_DLL void PreOrderVisit(const ObjectRef& stmt_or_expr,
+                           const std::function<bool(const ObjectRef&)>& fvisit);
 }  // namespace tir
 }  // namespace tvm
 
