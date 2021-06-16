@@ -98,7 +98,7 @@ TARGET = tvm.target.target.micro("host")
 
 import logging
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 pass_context = tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True})
 with pass_context:
     # with tvm.transform.PassContext(opt_level=3):
@@ -136,7 +136,7 @@ import tvm.micro
 # if not os.path.exists(workspace_parent):
 #         os.makedirs(workspace_parent)
 
-compiler = tvm.micro.DefaultCompiler(target=TARGET)
+# compiler = tvm.micro.DefaultCompiler(target=TARGET)
 opts = tvm.micro.default_options(
     os.path.join(tvm.micro.get_standalone_crt_dir(), "template", "host")
 )
@@ -232,34 +232,42 @@ for task in tasks:
 # will select a randomly-tuned implementation for each operator, which should not perform as well as
 # the tuned operator.
 
+with pass_context:
+    graph, lowered_mod, lowered_params = tvm.relay.build(tvm_model, target=TARGET, params=params)
 
-# from tvm.contrib.debugger import debug_runtime
-# with pass_context:
-#   graph, lowered_mod, lowered_params = tvm.relay.build(tvm_model, target=TARGET, params=params)
+workspace = tvm.micro.Workspace(debug=True)
+compiler = tvm.micro.DefaultCompiler(target=TARGET)
+micro_binary = tvm.micro.build_static_runtime(
+    workspace, compiler, lowered_mod, opts, extra_libs=[tvm.micro.get_standalone_crt_lib("memory")]
+)
 
-# workspace = tvm.micro.Workspace(debug=True)
-# micro_binary = tvm.micro.build_static_runtime(workspace, compiler, lowered_mod, extra_libs=[os.path.join(tvm.micro.build.CRT_ROOT_DIR, "memory")], **opts)
-# with tvm.micro.Session(flasher=compiler.flasher_factory.instantiate(), binary=micro_binary) as sess:
-#   debug_module = tvm.micro.session.create_local_debug_runtime(graph, sess._rpc.get_function('runtime.SystemLib')(), ctx=sess.context)
-#   debug_module.set_input(**lowered_params)
-#   debug_module.run()
-#   del debug_module
+with tvm.micro.Session(transport_context_manager=compiler.flasher().flash(micro_binary)) as sess:
+    debug_module = tvm.micro.session.create_local_debug_executor(
+        graph, sess._rpc.get_function("runtime.SystemLib")(), device=sess.device
+    )
+    debug_module.set_input(**lowered_params)
+    debug_module.run()
+    del debug_module
 
 
 ##########################
 # Timing the tuned program
 ##########################
 # Once autotuning completes, you can time execution of the entire program using the Debug Runtime:
+with tvm.autotvm.apply_history_best("autotune.log"):
+    with pass_context:
+        graph, lowered_mod, lowered_params = tvm.relay.build(
+            tvm_model, target=TARGET, params=params
+        )
 
-
-# with tvm.autotvm.apply_history_best('autotune.log'):
-#   with pass_context:
-#     graph, lowered_mod, lowered_params = tvm.relay.build(tvm_model, target=TARGET, params=params)
-
-# workspace = tvm.micro.Workspace(debug=True)
-# micro_binary = tvm.micro.build_static_runtime(workspace, compiler, lowered_mod, extra_libs=[os.path.join(tvm.micro.build.CRT_ROOT_DIR, "memory")], **opts)
-# with tvm.micro.Session(flasher=compiler.flasher_factory.instantiate(), binary=micro_binary) as sess:
-#   debug_module = tvm.micro.session.create_local_debug_runtime(graph, sess._rpc.get_function('runtime.SystemLib')(), ctx=sess.context)
-#   debug_module.set_input(**lowered_params)
-#   debug_module.run()
-#   del debug_module
+workspace = tvm.micro.Workspace(debug=True)
+micro_binary = tvm.micro.build_static_runtime(
+    workspace, compiler, lowered_mod, opts, extra_libs=[tvm.micro.get_standalone_crt_lib("memory")]
+)
+with tvm.micro.Session(transport_context_manager=compiler.flasher().flash(micro_binary)) as sess:
+    debug_module = tvm.micro.session.create_local_debug_executor(
+        graph, sess._rpc.get_function("runtime.SystemLib")(), device=sess.device
+    )
+    debug_module.set_input(**lowered_params)
+    debug_module.run()
+    del debug_module
