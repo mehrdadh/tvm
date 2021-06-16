@@ -54,9 +54,6 @@
 /*! \brief Maximum length of a PackedFunc function name. */
 #define TVM_CRT_MAX_FUNCTION_NAME_LENGTH_BYTES 30
 
-/*! \brief DLDataType for the return value from strlen */
-#define TVM_CRT_STRLEN_DLTYPE 10
-
 /*! \brief Enable checks to enforce the stack allocator with a FIFO ordering. Off by default */
 // #define TVM_CRT_STACK_ALLOCATOR_ENABLE_FIFO_CHECK
 
