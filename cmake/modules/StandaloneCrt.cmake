@@ -55,6 +55,7 @@ if(USE_MICRO)
          "src/runtime/minrpc *.h -> src/runtime/minrpc"
          "src/support generic_arena.h -> src/support"
          "src/runtime/crt crt_config-template.h -> template"
+         "src/runtime/micro crt_config.h -> include"
          )
 
     set(standalone_crt_base "${CMAKE_CURRENT_BINARY_DIR}/standalone_crt")

@@ -62,7 +62,6 @@ inputs = {k: [v[0], v[3], v[1], v[2]] for k, v in inputs.items()}
 tvm_model, params = relay.frontend.from_keras(model, inputs, layout="NCHW")
 print(tvm_model)
 
-
 #######################
 # Defining the target #
 #######################
@@ -99,13 +98,12 @@ TARGET = tvm.target.target.micro("host")
 
 import logging
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 pass_context = tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True})
 with pass_context:
     # with tvm.transform.PassContext(opt_level=3):
     tasks = tvm.autotvm.task.extract_from_program(tvm_model["main"], {}, TARGET)
 assert len(tasks) > 0
-
 
 builder = tvm.autotvm.LocalBuilder()
 runner = tvm.autotvm.LocalRunner(number=1, repeat=1, timeout=0)
@@ -126,7 +124,18 @@ measure_option = tvm.autotvm.measure_option(builder=builder, runner=runner)
 import os
 import tvm.micro
 
-workspace = tvm.micro.Workspace()
+# workspace = tvm.micro.Workspace()
+# import datetime
+# parent_dir = os.path.dirname(__file__)
+# filename = os.path.splitext(os.path.basename(__file__))[0]
+# workspace_root = os.path.join(
+#         f"{os.path.join(parent_dir, 'workspace')}_{filename}",
+#         datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S"),
+#     )
+# workspace_parent = os.path.dirname(workspace_root)
+# if not os.path.exists(workspace_parent):
+#         os.makedirs(workspace_parent)
+
 compiler = tvm.micro.DefaultCompiler(target=TARGET)
 opts = tvm.micro.default_options(
     os.path.join(tvm.micro.get_standalone_crt_dir(), "template", "host")
@@ -144,6 +153,7 @@ module_loader = tvm.micro.autotvm_module_loader(
         tvm.micro.get_standalone_crt_lib("memory"),
     ],
     workspace_kw={"debug": True},
+    # workspace_kw={"root": workspace_root, "debug": True},
 )
 builder = tvm.autotvm.LocalBuilder(
     n_parallel=1, build_kwargs={"build_option": {"tir.disable_vectorize": True}}, do_fork=False

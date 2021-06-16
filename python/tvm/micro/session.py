@@ -365,7 +365,7 @@ def compile_and_create_micro_session(
     print("build binary", runtime_build_dir)
     binary = compiler_inst.binary(runtime_build_dir, libs, compiler_options["bin_opts"])
 
-    RPC_SESSION = Session(binary=binary, flasher=compiler_inst.flasher())
+    RPC_SESSION = Session(transport_context_manager=compiler_inst.flasher().flash(binary))
     RPC_SESSION.__enter__()
     return RPC_SESSION._rpc._sess
 

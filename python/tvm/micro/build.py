@@ -312,7 +312,7 @@ def autotvm_module_loader(
     # prefer the latter, but this needs an RFC, so we leave this code here for now.
     workspace = Workspace(**workspace_kw)
     compiler = compiler_factory.instantiate()
-    for lib_src_dir in (extra_libs or []) + get_runtime_libs():
+    for lib_src_dir in (extra_libs or []) + get_runtime_libs("host-driven"):
         lib_name = os.path.basename(lib_src_dir)
         lib_build_dir = workspace.relpath(os.path.join("build", lib_name))
         os.makedirs(lib_build_dir)
