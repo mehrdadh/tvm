@@ -254,7 +254,6 @@ def build_static_runtime(
         for p in os.listdir(lib_src_dir):
             if RUNTIME_SRC_REGEX.match(p):
                 lib_srcs.append(os.path.join(lib_src_dir, p))
-
         libs.append(compiler.library(lib_build_dir, lib_srcs, compiler_options["lib_opts"]))
 
     mod_src_dir = workspace.relpath(os.path.join("src", "module"))
