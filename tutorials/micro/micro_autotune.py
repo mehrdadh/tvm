@@ -84,6 +84,8 @@ TARGET = tvm.target.target.micro("host")
 # TARGET = tvm.target.target.micro("stm32f746xx")
 # BOARD = "nucleo_f746zg"  # or "stm32f746g_disco"
 
+TARGET = tvm.target.target.micro("host")
+BOARD = "qemu_x86"  # or "stm32f746g_disco"
 
 #########################
 # Extracting tuning tasks
@@ -98,7 +100,7 @@ TARGET = tvm.target.target.micro("host")
 
 import logging
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 pass_context = tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True})
 with pass_context:
     # with tvm.transform.PassContext(opt_level=3):
@@ -125,42 +127,42 @@ import os
 import tvm.micro
 
 # workspace = tvm.micro.Workspace()
-# import datetime
-# parent_dir = os.path.dirname(__file__)
-# filename = os.path.splitext(os.path.basename(__file__))[0]
-# workspace_root = os.path.join(
-#         f"{os.path.join(parent_dir, 'workspace')}_{filename}",
-#         datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S"),
-#     )
-# workspace_parent = os.path.dirname(workspace_root)
-# if not os.path.exists(workspace_parent):
-#         os.makedirs(workspace_parent)
+import datetime
+parent_dir = os.path.dirname(__file__)
+filename = os.path.splitext(os.path.basename(__file__))[0]
+workspace_root = os.path.join(
+        f"{os.path.join(parent_dir, 'workspace')}_{filename}",
+        datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S"),
+    )
+workspace_parent = os.path.dirname(workspace_root)
+if not os.path.exists(workspace_parent):
+        os.makedirs(workspace_parent)
 
 # compiler = tvm.micro.DefaultCompiler(target=TARGET)
-opts = tvm.micro.default_options(
-    os.path.join(tvm.micro.get_standalone_crt_dir(), "template", "host")
-)
-compiler = tvm.micro.CompilerFactory(
-    tvm.micro.DefaultCompiler,
-    init_args=tuple(),
-    init_kw=dict(target=str(TARGET)),
-)
+# opts = tvm.micro.default_options(
+#     os.path.join(tvm.micro.get_standalone_crt_dir(), "template", "host")
+# )
+# compiler = tvm.micro.CompilerFactory(
+#     tvm.micro.DefaultCompiler,
+#     init_args=tuple(),
+#     init_kw=dict(target=str(TARGET)),
+# )
 
-module_loader = tvm.micro.autotvm_module_loader(
-    compiler,
-    compiler_options=opts,
-    extra_libs=[
-        tvm.micro.get_standalone_crt_lib("memory"),
-    ],
-    workspace_kw={"debug": True},
-    # workspace_kw={"root": workspace_root, "debug": True},
-)
-builder = tvm.autotvm.LocalBuilder(
-    n_parallel=1, build_kwargs={"build_option": {"tir.disable_vectorize": True}}, do_fork=False
-)  # do_fork=False needed to persist stateful builder.
-runner = tvm.autotvm.LocalRunner(number=1, repeat=1, timeout=0, module_loader=module_loader)
+# module_loader = tvm.micro.autotvm_module_loader(
+#     compiler,
+#     compiler_options=opts,
+#     extra_libs=[
+#         tvm.micro.get_standalone_crt_lib("memory"),
+#     ],
+#     workspace_kw={"debug": True},
+#     # workspace_kw={"root": workspace_root, "debug": True},
+# )
+# builder = tvm.autotvm.LocalBuilder(
+#     n_parallel=1, build_kwargs={"build_option": {"tir.disable_vectorize": True}}, do_fork=False
+# )  # do_fork=False needed to persist stateful builder.
+# runner = tvm.autotvm.LocalRunner(number=1, repeat=1, timeout=0, module_loader=module_loader)
 
-measure_option = tvm.autotvm.measure_option(builder=builder, runner=runner)
+# measure_option = tvm.autotvm.measure_option(builder=builder, runner=runner)
 
 # %%
 # Autotuning on physical hardware
@@ -170,48 +172,56 @@ measure_option = tvm.autotvm.measure_option(builder=builder, runner=runner)
 #
 #  .. code-block:: python
 #
-#  import os
-#  import subprocess
-#  import tvm.micro
-#  from tvm.micro.contrib import zephyr
-#
-#  workspace = tvm.micro.Workspace(debug=True)
-#  repo_root = subprocess.check_output(
-#      ["git", "rev-parse", "--show-toplevel"], encoding="utf-8"
-#  ).strip()
-#  project_dir = f"{repo_root}/tests/micro/qemu/zephyr-runtime"
-#  compiler = tvm.micro.CompilerFactory(
-#      zephyr.ZephyrCompiler,
-#      init_args=tuple(),
-#      init_kw=dict(
-#          project_dir=project_dir,
-#          board=BOARD if "stm32f746" in str(TARGET) else "qemu_x86",
-#          zephyr_toolchain_variant="zephyr",
-#      ),
-#  )
-#  opts = tvm.micro.default_options(os.path.join(project_dir, "crt"))
-#
-#  module_loader = tvm.micro.autotvm_module_loader(
-#      compiler,
-#      extra_libs=[tvm.micro.get_standalone_crt_lib("memory")],
-#      compiler_options=opts,
-#      workspace_kw={"debug": True},
-#  )
-#  builder = tvm.autotvm.LocalBuilder(
-#      n_parallel=1,
-#      build_kwargs={"build_option": {"tir.disable_vectorize": True}},
-#      do_fork=False,
-#  )  # do_fork=False needed to persist stateful builder.
-#  runner = tvm.autotvm.LocalRunner(number=1, repeat=1, timeout=0, module_loader=module_loader)
+import os
+import pathlib
+import subprocess
+import tvm.micro
+from tvm.micro.contrib import zephyr
 
-#  measure_option = tvm.autotvm.measure_option(builder=builder, runner=runner)
+workspace = tvm.micro.Workspace(debug=True)
+template_project_dir = (
+        pathlib.Path(__file__).parent
+        / ".."
+        / ".."
+        / "apps"
+        / "microtvm"
+        / "zephyr"
+        / "template_project"
+    ).resolve()
+compiler = tvm.micro.CompilerFactory(
+     zephyr.ZephyrCompiler,
+     init_args=tuple(),
+     init_kw=dict(
+         project_dir=template_project_dir,
+         board=BOARD if "stm32f746" in str(TARGET) else "qemu_x86",
+         zephyr_toolchain_variant="zephyr",
+     ),
+ )
+opts = tvm.micro.default_options(os.path.join(template_project_dir, "crt"))
 
+module_loader = tvm.micro.autotvm_module_loader(
+     compiler,
+     extra_libs=[tvm.micro.get_standalone_crt_lib("memory")],
+     compiler_options=opts,
+    #  workspace_kw={"debug": True},
+     workspace_kw={"root": workspace_root, "debug": True},
+)
+builder = tvm.autotvm.LocalBuilder(
+     n_parallel=1,
+     build_kwargs={"build_option": {"tir.disable_vectorize": True}},
+     do_fork=False,
+)  # do_fork=False needed to persist stateful builder.
+runner = tvm.autotvm.LocalRunner(number=1, repeat=1, timeout=0, module_loader=module_loader)
+
+measure_option = tvm.autotvm.measure_option(builder=builder, runner=runner)
+
+# import pdb; pdb.set_trace()
 
 ################
 # Run Autotuning
 ################
 # Now we can run autotuning separately on each extracted task.
-NUM_TRIALS = 10
+NUM_TRIALS = 1
 for task in tasks:
     tuner = tvm.autotvm.tuner.GATuner(task)
     tuner.tune(
@@ -232,42 +242,42 @@ for task in tasks:
 # will select a randomly-tuned implementation for each operator, which should not perform as well as
 # the tuned operator.
 
-with pass_context:
-    graph, lowered_mod, lowered_params = tvm.relay.build(tvm_model, target=TARGET, params=params)
+# with pass_context:
+#     graph, lowered_mod, lowered_params = tvm.relay.build(tvm_model, target=TARGET, params=params)
 
-workspace = tvm.micro.Workspace(debug=True)
-compiler = tvm.micro.DefaultCompiler(target=TARGET)
-micro_binary = tvm.micro.build_static_runtime(
-    workspace, compiler, lowered_mod, opts, extra_libs=[tvm.micro.get_standalone_crt_lib("memory")]
-)
+# workspace = tvm.micro.Workspace(debug=True)
+# compiler = tvm.micro.DefaultCompiler(target=TARGET)
+# micro_binary = tvm.micro.build_static_runtime(
+#     workspace, compiler, lowered_mod, opts, extra_libs=[tvm.micro.get_standalone_crt_lib("memory")]
+# )
 
-with tvm.micro.Session(transport_context_manager=compiler.flasher().flash(micro_binary)) as sess:
-    debug_module = tvm.micro.session.create_local_debug_executor(
-        graph, sess._rpc.get_function("runtime.SystemLib")(), device=sess.device
-    )
-    debug_module.set_input(**lowered_params)
-    debug_module.run()
-    del debug_module
+# with tvm.micro.Session(transport_context_manager=compiler.flasher().flash(micro_binary)) as sess:
+#     debug_module = tvm.micro.session.create_local_debug_executor(
+#         graph, sess._rpc.get_function("runtime.SystemLib")(), device=sess.device
+#     )
+#     debug_module.set_input(**lowered_params)
+#     debug_module.run()
+#     del debug_module
 
 
 ##########################
 # Timing the tuned program
 ##########################
 # Once autotuning completes, you can time execution of the entire program using the Debug Runtime:
-with tvm.autotvm.apply_history_best("autotune.log"):
-    with pass_context:
-        graph, lowered_mod, lowered_params = tvm.relay.build(
-            tvm_model, target=TARGET, params=params
-        )
+# with tvm.autotvm.apply_history_best("autotune.log"):
+#     with pass_context:
+#         graph, lowered_mod, lowered_params = tvm.relay.build(
+#             tvm_model, target=TARGET, params=params
+#         )
 
-workspace = tvm.micro.Workspace(debug=True)
-micro_binary = tvm.micro.build_static_runtime(
-    workspace, compiler, lowered_mod, opts, extra_libs=[tvm.micro.get_standalone_crt_lib("memory")]
-)
-with tvm.micro.Session(transport_context_manager=compiler.flasher().flash(micro_binary)) as sess:
-    debug_module = tvm.micro.session.create_local_debug_executor(
-        graph, sess._rpc.get_function("runtime.SystemLib")(), device=sess.device
-    )
-    debug_module.set_input(**lowered_params)
-    debug_module.run()
-    del debug_module
+# workspace = tvm.micro.Workspace(debug=True)
+# micro_binary = tvm.micro.build_static_runtime(
+#     workspace, compiler, lowered_mod, opts, extra_libs=[tvm.micro.get_standalone_crt_lib("memory")]
+# )
+# with tvm.micro.Session(transport_context_manager=compiler.flasher().flash(micro_binary)) as sess:
+#     debug_module = tvm.micro.session.create_local_debug_executor(
+#         graph, sess._rpc.get_function("runtime.SystemLib")(), device=sess.device
+#     )
+#     debug_module.set_input(**lowered_params)
+#     debug_module.run()
+#     del debug_module
