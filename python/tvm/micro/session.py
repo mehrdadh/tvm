@@ -36,6 +36,8 @@ from . import build
 from . import compiler
 from . import micro_binary
 from . import micro_library
+from .project import generate_project
+from . import Workspace
 
 try:
     from .base import _rpc_connect
@@ -299,11 +301,13 @@ def create_micro_session(
 
 @register_func("tvm.micro.compile_and_create_micro_session")
 def compile_and_create_micro_session(
-    compiler_factory_json: bytes,
+    # compiler_factory_json: bytes,
     mod_src_tar: bytes,
-    compiler_options_json: str,
-    lib_paths_json: str,
-    workspace_kw_json: str,
+    template_project_dir: str,
+    project_options: dict = None,
+    # compiler_options_json: str,
+    # lib_paths_json: str,
+    # workspace_kw_json: str,
 ):
     """Compile the given libraries and sources into a MicroBinary, then invoke create_micro_session.
 
@@ -333,40 +337,54 @@ def compile_and_create_micro_session(
     """
     global RPC_SESSION
 
-    lib_paths = json.loads(lib_paths_json)
-    workspace = build.Workspace(**json.loads(workspace_kw_json))
-    compiler_inst = compiler.CompilerFactory.from_json(compiler_factory_json).instantiate()
-    compiler_options = json.loads(compiler_options_json)
+    # lib_paths = json.loads(lib_paths_json)
+    # workspace = build.Workspace(**json.loads(workspace_kw_json))
+    # compiler_inst = compiler.CompilerFactory.from_json(compiler_factory_json).instantiate()
+    # compiler_options = json.loads(compiler_options_json)
 
-    mod_src_dir = workspace.relpath(os.path.join("src", "module"))
-    os.makedirs(mod_src_dir)
-    tar_f = tarfile.open(fileobj=io.BytesIO(mod_src_tar), mode="r:*")
-    tar_f.extractall(mod_src_dir)
+    # mod_src_dir = workspace.relpath(os.path.join("src", "module"))
+    # os.makedirs(mod_src_dir)
+    # tar_f = tarfile.open(fileobj=io.BytesIO(mod_src_tar), mode="r:*")
+    # tar_f.extractall(mod_src_dir)
 
-    mod_build_dir = workspace.relpath(os.path.join("lib", "module"))
-    os.makedirs(mod_build_dir)
-    mod_src_paths = [os.path.join(mod_src_dir, n) for n in tar_f.getnames()]
-    mod_lib = compiler_inst.library(
-        mod_build_dir, mod_src_paths, compiler_options["generated_lib_opts"]
+    # mod_build_dir = workspace.relpath(os.path.join("lib", "module"))
+    # os.makedirs(mod_build_dir)
+    # mod_src_paths = [os.path.join(mod_src_dir, n) for n in tar_f.getnames()]
+    # mod_lib = compiler_inst.library(
+    #     mod_build_dir, mod_src_paths, compiler_options["generated_lib_opts"]
+    # )
+
+    # libs = []
+    # for lib_path in lib_paths:
+    #     # Split off the .micro-library extension
+    #     lib_dir_name = os.path.splitext(os.path.basename(lib_path))[0]
+    #     lib_dir = workspace.relpath(os.path.join("lib", lib_dir_name))
+
+    #     libs.append(micro_library.MicroLibrary.unarchive(lib_path, lib_dir))
+
+    # libs.append(mod_lib)
+
+    # runtime_build_dir = workspace.relpath(os.path.join("runtime"))
+    # os.makedirs(runtime_build_dir)
+    # print("build binary", runtime_build_dir)
+    # binary = compiler_inst.binary(runtime_build_dir, libs, compiler_options["bin_opts"])
+    ##create graph executor factory
+    # self, ir_mod, target, graph_json_str, libmod, libmod_name, params, function_metadata
+
+    workspace = Workspace(debug=True)
+    project = generate_project(
+        template_project_dir,
+        mod_src_tar,
+        workspace.relpath("project"),
+        project_options,
     )
-
-    libs = []
-    for lib_path in lib_paths:
-        # Split off the .micro-library extension
-        lib_dir_name = os.path.splitext(os.path.basename(lib_path))[0]
-        lib_dir = workspace.relpath(os.path.join("lib", lib_dir_name))
-
-        libs.append(micro_library.MicroLibrary.unarchive(lib_path, lib_dir))
-
-    libs.append(mod_lib)
-
-    runtime_build_dir = workspace.relpath(os.path.join("runtime"))
-    os.makedirs(runtime_build_dir)
-    print("build binary", runtime_build_dir)
-    binary = compiler_inst.binary(runtime_build_dir, libs, compiler_options["bin_opts"])
-
-    RPC_SESSION = Session(transport_context_manager=compiler_inst.flasher().flash(binary))
-    RPC_SESSION.__enter__()
+    # import pdb; pdb.set_trace()
+    print("mehrdad session")
+    project.build()
+    project.flash()
+    
+    RPC_SESSION = Session(project.transport())
+    # RPC_SESSION.__enter__()
     return RPC_SESSION._rpc._sess
 
 

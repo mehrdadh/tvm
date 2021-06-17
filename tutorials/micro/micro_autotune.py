@@ -33,7 +33,7 @@ This tutorial explains how to autotune a model using the C runtime.
 # from a usual Keras model definition. Let's define a relatively small model here for efficiency's
 # sake.
 
-
+import pathlib
 import tensorflow as tf
 from tensorflow import keras
 
@@ -127,42 +127,27 @@ import os
 import tvm.micro
 
 # workspace = tvm.micro.Workspace()
-import datetime
-parent_dir = os.path.dirname(__file__)
-filename = os.path.splitext(os.path.basename(__file__))[0]
-workspace_root = os.path.join(
-        f"{os.path.join(parent_dir, 'workspace')}_{filename}",
-        datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S"),
-    )
-workspace_parent = os.path.dirname(workspace_root)
-if not os.path.exists(workspace_parent):
-        os.makedirs(workspace_parent)
+# import datetime
+# parent_dir = os.path.dirname(__file__)
+# filename = os.path.splitext(os.path.basename(__file__))[0]
+# workspace_root = os.path.join(
+#         f"{os.path.join(parent_dir, 'workspace')}_{filename}",
+#         datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S"),
+#     )
+# workspace_parent = os.path.dirname(workspace_root)
+# if not os.path.exists(workspace_parent):
+#         os.makedirs(workspace_parent)
+template_project_dir = pathlib.Path(tvm.micro.get_standalone_crt_dir()) / "template" / "host"
+module_loader = tvm.micro.autotvm_module_loader(
+    str(template_project_dir),
+    {"verbose": 1},
+)
+builder = tvm.autotvm.LocalBuilder(
+    n_parallel=1, build_kwargs={"build_option": {"tir.disable_vectorize": True}}, do_fork=False
+)  # do_fork=False needed to persist stateful builder.
+runner = tvm.autotvm.LocalRunner(number=1, repeat=1, timeout=0, module_loader=module_loader)
 
-# compiler = tvm.micro.DefaultCompiler(target=TARGET)
-# opts = tvm.micro.default_options(
-#     os.path.join(tvm.micro.get_standalone_crt_dir(), "template", "host")
-# )
-# compiler = tvm.micro.CompilerFactory(
-#     tvm.micro.DefaultCompiler,
-#     init_args=tuple(),
-#     init_kw=dict(target=str(TARGET)),
-# )
-
-# module_loader = tvm.micro.autotvm_module_loader(
-#     compiler,
-#     compiler_options=opts,
-#     extra_libs=[
-#         tvm.micro.get_standalone_crt_lib("memory"),
-#     ],
-#     workspace_kw={"debug": True},
-#     # workspace_kw={"root": workspace_root, "debug": True},
-# )
-# builder = tvm.autotvm.LocalBuilder(
-#     n_parallel=1, build_kwargs={"build_option": {"tir.disable_vectorize": True}}, do_fork=False
-# )  # do_fork=False needed to persist stateful builder.
-# runner = tvm.autotvm.LocalRunner(number=1, repeat=1, timeout=0, module_loader=module_loader)
-
-# measure_option = tvm.autotvm.measure_option(builder=builder, runner=runner)
+measure_option = tvm.autotvm.measure_option(builder=builder, runner=runner)
 
 # %%
 # Autotuning on physical hardware
@@ -172,48 +157,33 @@ if not os.path.exists(workspace_parent):
 #
 #  .. code-block:: python
 #
-import os
-import pathlib
-import subprocess
-import tvm.micro
-from tvm.micro.contrib import zephyr
+# import os
+# import subprocess
+# import tvm.micro
+# from tvm.micro.contrib import zephyr
 
-workspace = tvm.micro.Workspace(debug=True)
-template_project_dir = (
-        pathlib.Path(__file__).parent
-        / ".."
-        / ".."
-        / "apps"
-        / "microtvm"
-        / "zephyr"
-        / "template_project"
-    ).resolve()
-compiler = tvm.micro.CompilerFactory(
-     zephyr.ZephyrCompiler,
-     init_args=tuple(),
-     init_kw=dict(
-         project_dir=template_project_dir,
-         board=BOARD if "stm32f746" in str(TARGET) else "qemu_x86",
-         zephyr_toolchain_variant="zephyr",
-     ),
- )
-opts = tvm.micro.default_options(os.path.join(template_project_dir, "crt"))
+# workspace = tvm.micro.Workspace(debug=True)
+# template_project_dir = (
+#         pathlib.Path(__file__).parent
+#         / ".."
+#         / ".."
+#         / "apps"
+#         / "microtvm"
+#         / "zephyr"
+#         / "template_project"
+#     ).resolve()
+# module_loader = tvm.micro.autotvm_module_loader(
+#     template_project_dir,
+#     {"zephyr_board": BOARD, "west_cmd": "west", "verbose": 1},
+# )
+# builder = tvm.autotvm.LocalBuilder(
+#      n_parallel=1,
+#      build_kwargs={"build_option": {"tir.disable_vectorize": True}},
+#      do_fork=False,
+# )  # do_fork=False needed to persist stateful builder.
+# runner = tvm.autotvm.LocalRunner(number=1, repeat=1, timeout=0, module_loader=module_loader)
 
-module_loader = tvm.micro.autotvm_module_loader(
-     compiler,
-     extra_libs=[tvm.micro.get_standalone_crt_lib("memory")],
-     compiler_options=opts,
-    #  workspace_kw={"debug": True},
-     workspace_kw={"root": workspace_root, "debug": True},
-)
-builder = tvm.autotvm.LocalBuilder(
-     n_parallel=1,
-     build_kwargs={"build_option": {"tir.disable_vectorize": True}},
-     do_fork=False,
-)  # do_fork=False needed to persist stateful builder.
-runner = tvm.autotvm.LocalRunner(number=1, repeat=1, timeout=0, module_loader=module_loader)
-
-measure_option = tvm.autotvm.measure_option(builder=builder, runner=runner)
+# measure_option = tvm.autotvm.measure_option(builder=builder, runner=runner)
 
 # import pdb; pdb.set_trace()
 

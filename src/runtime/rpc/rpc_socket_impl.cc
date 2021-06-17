@@ -66,6 +66,7 @@ class SockChannel final : public RPCChannel {
 
 std::shared_ptr<RPCEndpoint> RPCConnect(std::string url, int port, std::string key,
                                         TVMArgs init_seq) {
+  LOG(ERROR) << "mehrdad: RPCCOnnect";
   support::TCPSocket sock;
   support::SockAddr addr(url.c_str(), port);
   sock.Create(addr.ss_family());
@@ -96,6 +97,7 @@ std::shared_ptr<RPCEndpoint> RPCConnect(std::string url, int port, std::string k
     remote_key.resize(keylen);
     ICHECK_EQ(sock.RecvAll(&remote_key[0], keylen), keylen);
   }
+  LOG(ERROR) << "mehrdad: RPCCOnnect 10";
   auto endpt =
       RPCEndpoint::Create(std::unique_ptr<SockChannel>(new SockChannel(sock)), key, remote_key);
   endpt->InitRemoteSession(init_seq);

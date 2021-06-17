@@ -194,6 +194,10 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
 
   void SendPackedSeq(const TVMValue* arg_values, const int* type_codes, int num_args,
                      bool client_mode) {
+    LOG(ERROR) << "mehrdad: SendPackedSeq: " << num_args;
+    for (int i=0; i<num_args; i++) {
+      LOG(ERROR) << "mehrdad args: " << type_codes[i];
+    }
     RPCReference::SendPackedSeq(arg_values, type_codes, num_args, client_mode, this);
   }
 
@@ -622,6 +626,7 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
 };
 
 RPCCode RPCEndpoint::HandleUntilReturnEvent(bool client_mode, RPCSession::FEncodeReturn setreturn) {
+  LOG(ERROR) << "mehrdad: HandleUntilReturnEvent";
   RPCCode code = RPCCode::kCallFunc;
   while (code != RPCCode::kReturn && code != RPCCode::kShutdown && code != RPCCode::kCopyAck) {
     while (writer_.bytes_available() != 0) {
@@ -642,6 +647,7 @@ RPCCode RPCEndpoint::HandleUntilReturnEvent(bool client_mode, RPCSession::FEncod
       }
     }
     code = handler_->HandleNextEvent(client_mode, false, setreturn);
+    LOG(ERROR) << "mehrdad: code: " << static_cast<int>(code);
   }
   return code;
 }
@@ -754,6 +760,7 @@ int RPCEndpoint::ServerAsyncIOEventHandler(const std::string& in_bytes, int even
 }
 
 void RPCEndpoint::InitRemoteSession(TVMArgs args) {
+  LOG(ERROR) << "mehrdad: initremote session";
   std::lock_guard<std::mutex> lock(mutex_);
   RPCCode code = RPCCode::kInitServer;
   std::string protocol_ver = kRPCProtocolVer;
@@ -771,6 +778,7 @@ void RPCEndpoint::InitRemoteSession(TVMArgs args) {
   handler_->SendPackedSeq(args.values, args.type_codes, args.num_args, true);
 
   code = HandleUntilReturnEvent(true, [](TVMArgs args) {});
+  LOG(ERROR) << "mehrdad: initremote session done";
   ICHECK(code == RPCCode::kReturn) << "code=" << static_cast<int>(code);
 }
 
