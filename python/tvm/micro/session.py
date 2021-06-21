@@ -370,9 +370,10 @@ def compile_and_create_micro_session(
     # binary = compiler_inst.binary(runtime_build_dir, libs, compiler_options["bin_opts"])
     ##create graph executor factory
     # self, ir_mod, target, graph_json_str, libmod, libmod_name, params, function_metadata
+    print("mehrdad: create project", file=sys.stdout)
+    print("mehrdad: create project", file=sys.stderr)
 
-    workspace = Workspace(debug=True)
-    print("mehrdad: create project")
+    workspace = Workspace(debug=False)
     project = generate_project(
         template_project_dir,
         mod_src_tar,
@@ -380,7 +381,7 @@ def compile_and_create_micro_session(
         project_options,
     )
     # import pdb; pdb.set_trace()
-    print("mehrdad: session")
+    logging.debug("mehrdad: session", file=sys.stderr)
     project.build()
     project.flash()
     

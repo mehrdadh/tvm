@@ -30,6 +30,7 @@ from .micro_library import MicroLibrary
 from .micro_binary import MicroBinary
 from .model_library_format import export_model_library_format, UnsupportedInModelLibraryFormatError
 from .project import generate_project, GeneratedProject, TemplateProject
+from .session import compile_and_create_micro_session
 from .session import (
     create_local_graph_executor,
     create_local_debug_executor,

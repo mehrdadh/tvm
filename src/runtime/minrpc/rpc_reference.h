@@ -81,6 +81,8 @@ enum class RPCServerStatus : int {
 
 inline const char* RPCCodeToString(RPCCode code) {
   switch (code) {
+    case RPCCode::kNone:
+      return "kNone";
     case RPCCode::kShutdown:
       return "kShutdown";
     case RPCCode::kInitServer:
@@ -123,7 +125,7 @@ inline const char* RPCCodeToString(RPCCode code) {
     case RPCCode::kDevAllocDataWithScope:
       return "kDevAllocDataWithScope";
     default:
-      return "";
+      return "Not supported code";
   }
 }
 

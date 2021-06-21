@@ -349,7 +349,8 @@ def autotvm_module_loader(
         # print(f"mehrdad: {build_result_bin}")
         
         tracker = _rpc.connect_tracker(remote_kw["host"], remote_kw["port"])
-        print(f"mehrdad tracker connect done")
+        import sys
+        print(f"mehrdad tracker connect done", file=sys.stderr)
         print(remote_kw)
         remote = tracker.request(
             remote_kw["device_key"],
@@ -362,7 +363,7 @@ def autotvm_module_loader(
                 project_options,
             ],
         )
-        print("mehrdad tracker request done")
+        logging.debug("mehrdad tracker request done")
         system_lib = remote.get_function("runtime.SystemLib")()
         yield remote, system_lib
 

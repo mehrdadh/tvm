@@ -152,7 +152,7 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
         }
       }
     }
-
+    LOG(ERROR) << "mehrdad HandleNextEvent: " << RPCCodeToString(status) << ", " << static_cast<int>(state_) << ", " << this->Ready();
     std::swap(async_server_mode_, async_server_mode);
     std::swap(client_mode_, client_mode);
     return status;
@@ -293,7 +293,7 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
   void HandleProcessPacket(RPCSession::FEncodeReturn setreturn) {
     RPCCode code = RPCCode::kNone;
     this->Read(&code);
-
+    LOG(ERROR) << "mehrdad: HandleProcessPacket code: " << RPCCodeToString(code);
     if (code >= RPCCode::kSyscallCodeStart) {
       this->HandleSyscall(code);
     } else {
@@ -525,10 +525,13 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
 
       auto* fconstructor = Registry::Get(constructor_name);
       ICHECK(fconstructor != nullptr) << " Cannot find session constructor " << constructor_name;
+      LOG(ERROR) << "mehrdad: HandleInitServer check";
       TVMRetValue con_ret;
 
       try {
+        LOG(ERROR) << "mehrdad: fconstructor start";
         fconstructor->CallPacked(constructor_args, &con_ret);
+        LOG(ERROR) << "mehrdad: fconstructor end";
       } catch (const Error& e) {
         LOG(FATAL) << "Server[" << name_ << "]:"
                    << " Error caught from session constructor " << constructor_name << ":\n"
@@ -647,12 +650,14 @@ RPCCode RPCEndpoint::HandleUntilReturnEvent(bool client_mode, RPCSession::FEncod
       }
     }
     code = handler_->HandleNextEvent(client_mode, false, setreturn);
-    LOG(ERROR) << "mehrdad: code: " << static_cast<int>(code);
+    LOG(ERROR) << "mehrdad: HandleUntilReturnEvent code: " << RPCCodeToString(code);
+    LOG(ERROR) << "mehrdad: HandleUntilReturnEvent code: " << static_cast<int>(code);
   }
   return code;
 }
 
 void RPCEndpoint::Init() {
+  LOG(ERROR) << "mehrdad: RPCEndpoint::Init";
   // callback to flush the writer.
   auto flush_writer = [this]() {
     while (writer_.bytes_available() != 0) {
@@ -684,6 +689,7 @@ void RPCEndpoint::Init() {
       ICHECK_EQ(args.size(), 1);
       *rv = args[0];
     });
+    LOG(ERROR) << "mehrdad: Init code: " << static_cast<int>(code);
     ICHECK(code == RPCCode::kReturn) << "code=" << static_cast<int>(code);
   });
 }
@@ -698,6 +704,7 @@ void RPCEndpoint::Init() {
  */
 std::shared_ptr<RPCEndpoint> RPCEndpoint::Create(std::unique_ptr<RPCChannel> channel,
                                                  std::string name, std::string remote_key) {
+  LOG(ERROR) << "mehrdad: RPCEndpoint::Create";
   std::shared_ptr<RPCEndpoint> endpt = std::make_shared<RPCEndpoint>();
   endpt->channel_ = std::move(channel);
   endpt->name_ = std::move(name);

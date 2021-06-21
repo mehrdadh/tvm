@@ -388,6 +388,7 @@ class TrackerSession(object):
             The first element of the list is always a string specifying the name of
             the session constructor, the following args are the positional args to that function.
         """
+        print("mehrdad: tracker request")
         last_err = None
         for _ in range(max_retry):
             try:
@@ -398,7 +399,7 @@ class TrackerSession(object):
                 if value[0] != base.TrackerCode.SUCCESS:
                     raise RuntimeError("Invalid return value %s" % str(value))
                 url, port, matchkey = value[1]
-                print(f"mehrdad: {value}")
+                print(f"mehrdad value: {value}")
                 return connect(
                     url,
                     port,
