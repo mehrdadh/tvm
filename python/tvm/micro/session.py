@@ -372,6 +372,7 @@ def compile_and_create_micro_session(
     # self, ir_mod, target, graph_json_str, libmod, libmod_name, params, function_metadata
 
     workspace = Workspace(debug=True)
+    print("mehrdad: create project")
     project = generate_project(
         template_project_dir,
         mod_src_tar,
@@ -379,7 +380,7 @@ def compile_and_create_micro_session(
         project_options,
     )
     # import pdb; pdb.set_trace()
-    print("mehrdad session")
+    print("mehrdad: session")
     project.build()
     project.flash()
     

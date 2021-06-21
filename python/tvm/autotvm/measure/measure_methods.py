@@ -504,11 +504,9 @@ class _WrappedBuildFunc:
             # func.export_library(filename, self.build_func)
             from tvm.micro.model_library_format import export_model_library_format
             export_model_library_format(func, filename)
-            import pdb; pdb.set_trace()
         except Exception as e:  # pylint: disable=broad-except
             logger.debug(f"{_WrappedBuildFunc.__name__}: {e}")
             return BuildResult(None, None, e, time.time() - tic)
-        # import pdb; pdb.set_trace()
         return BuildResult(filename, arg_info, None, time.time() - tic)
 
 

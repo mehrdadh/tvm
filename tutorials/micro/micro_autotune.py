@@ -126,6 +126,7 @@ measure_option = tvm.autotvm.measure_option(builder=builder, runner=runner)
 import os
 import tvm.micro
 
+# will be removed
 # workspace = tvm.micro.Workspace()
 # import datetime
 # parent_dir = os.path.dirname(__file__)
@@ -137,6 +138,8 @@ import tvm.micro
 # workspace_parent = os.path.dirname(workspace_root)
 # if not os.path.exists(workspace_parent):
 #         os.makedirs(workspace_parent)
+##############
+
 template_project_dir = pathlib.Path(tvm.micro.get_standalone_crt_dir()) / "template" / "host"
 module_loader = tvm.micro.autotvm_module_loader(
     str(template_project_dir),
@@ -162,7 +165,7 @@ measure_option = tvm.autotvm.measure_option(builder=builder, runner=runner)
 # import tvm.micro
 # from tvm.micro.contrib import zephyr
 
-# workspace = tvm.micro.Workspace(debug=True)
+# # workspace = tvm.micro.Workspace(debug=True)
 # template_project_dir = (
 #         pathlib.Path(__file__).parent
 #         / ".."
