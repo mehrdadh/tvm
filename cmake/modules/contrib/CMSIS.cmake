@@ -15,14 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 
-if(USE_CMSIS STREQUAL "ON")
-  #find_library(BLAS_LIBRARY openblas)
-  #list(APPEND TVM_RUNTIME_LINKER_LIBS ${BLAS_LIBRARY})
+if(NOT ${USE_CMSIS} MATCHES ${IS_FALSE_PATTERN})
+  find_cmsis(${USE_CMSIS})
+  include_directories(SYSTEM ${CMSIS_INCLUDE_DIRS})
   list(APPEND RUNTIME_SRCS src/runtime/contrib/cmsis/cmsis.cc)
-  message(STATUS "Using CMSIS library")
+  message(STATUS "Using CMSIS=" "${CMSIS_BASE}")
 elseif(USE_CMSIS STREQUAL "OFF")
   # pass
 else()
-  message(FATAL_ERROR "Invalid option: USE_CMSIS=" ${USE_BLAS})
+  message(FATAL_ERROR "Invalid option: USE_CMSIS=" ${USE_CMSIS})
 endif()
 

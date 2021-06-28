@@ -25,8 +25,7 @@
 #include <tvm/runtime/registry.h>
 
 extern "C" {
-// #include <cblas.h>
-// include cmsis library
+#include <arm_nnfunctions.h>
 }
 
 namespace tvm {
