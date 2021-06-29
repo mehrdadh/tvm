@@ -335,32 +335,24 @@ def autotvm_module_loader(
 
     @contextlib.contextmanager
     def module_loader(remote_kw, build_result):
-        # with open(build_result.filename, "rb") as build_result_f:
-        #     build_result_bin = build_result_f.read()
-
-        # import pdb; pdb.set_trace()
         print(f"mehrdad: {build_result.filename}")
-        import tarfile
-        tar = tarfile.open(build_result.filename)
-        tar_relay_member = tar.getmember("./src/tir-1.txt")
-        f = tar.extractfile(tar_relay_member)
-        build_result_bin = f.read()
-        print(f"mehrdad: {tar_relay_member}")
-        # print(f"mehrdad: {build_result_bin}")
         
         tracker = _rpc.connect_tracker(remote_kw["host"], remote_kw["port"])
         import sys
         print(f"mehrdad tracker connect done", file=sys.stderr)
         print(remote_kw)
+        print(template_project_dir)
+        print(project_options)
+
         remote = tracker.request(
             remote_kw["device_key"],
             priority=remote_kw["priority"],
             session_timeout=remote_kw["timeout"],
             session_constructor_args=[
                 "tvm.micro.compile_and_create_micro_session",
-                build_result_bin,
+                build_result.filename,
                 template_project_dir,
-                project_options,
+                json.dumps(project_options),
             ],
         )
         logging.debug("mehrdad tracker request done")

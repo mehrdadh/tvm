@@ -122,8 +122,9 @@ class Session:
         Session :
             Returns self.
         """
+        print(f"mehrdad: self.transport_context_manager: {self.transport_context_manager}")
         self.transport = TransportLogger(
-            self.session_name, self.transport_context_manager, level=logging.DEBUG
+            self.session_name, self.transport_context_manager, level=logging.ERROR
         ).__enter__()
 
         try:
@@ -370,23 +371,25 @@ def compile_and_create_micro_session(
     # binary = compiler_inst.binary(runtime_build_dir, libs, compiler_options["bin_opts"])
     ##create graph executor factory
     # self, ir_mod, target, graph_json_str, libmod, libmod_name, params, function_metadata
-    print("mehrdad: create project", file=sys.stdout)
-    print("mehrdad: create project", file=sys.stderr)
+    # print("mehrdad: create project", file=sys.stdout)
+    # print("mehrdad: create project", file=sys.stderr)
 
+    # with open(tvm.utils)
+    # make a temp file and pass the path
+    
     workspace = Workspace(debug=False)
     project = generate_project(
         template_project_dir,
         mod_src_tar,
         workspace.relpath("project"),
-        project_options,
+        json.loads(project_options),
     )
-    # import pdb; pdb.set_trace()
-    logging.debug("mehrdad: session", file=sys.stderr)
     project.build()
     project.flash()
-    
-    RPC_SESSION = Session(project.transport())
-    # RPC_SESSION.__enter__()
+    transport = project.transport()
+
+    RPC_SESSION = Session(transport)
+    RPC_SESSION.__enter__()
     return RPC_SESSION._rpc._sess
 
 
