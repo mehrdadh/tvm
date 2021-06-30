@@ -337,10 +337,14 @@ def autotvm_module_loader(
     def module_loader(remote_kw, build_result):
         print(f"mehrdad: {build_result.filename}")
         
+        with open(build_result.filename, "rb") as build_file:
+            build_result_bin = build_file.read()
+
         tracker = _rpc.connect_tracker(remote_kw["host"], remote_kw["port"])
         import sys
         print(f"mehrdad tracker connect done", file=sys.stderr)
         print(remote_kw)
+        print(f"mehrdad: type: {type(build_result_bin)}")
         print(template_project_dir)
         print(project_options)
 
@@ -350,7 +354,7 @@ def autotvm_module_loader(
             session_timeout=remote_kw["timeout"],
             session_constructor_args=[
                 "tvm.micro.compile_and_create_micro_session",
-                build_result.filename,
+                build_result_bin,
                 template_project_dir,
                 json.dumps(project_options),
             ],

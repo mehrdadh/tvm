@@ -25,6 +25,8 @@ import tarfile
 import tempfile
 import sys
 
+from tvm.contrib import utils
+
 from ..error import register_error
 from .._ffi import get_global_func, register_func
 from ..contrib import graph_executor
@@ -338,49 +340,15 @@ def compile_and_create_micro_session(
     """
     global RPC_SESSION
 
-    # lib_paths = json.loads(lib_paths_json)
-    # workspace = build.Workspace(**json.loads(workspace_kw_json))
-    # compiler_inst = compiler.CompilerFactory.from_json(compiler_factory_json).instantiate()
-    # compiler_options = json.loads(compiler_options_json)
-
-    # mod_src_dir = workspace.relpath(os.path.join("src", "module"))
-    # os.makedirs(mod_src_dir)
-    # tar_f = tarfile.open(fileobj=io.BytesIO(mod_src_tar), mode="r:*")
-    # tar_f.extractall(mod_src_dir)
-
-    # mod_build_dir = workspace.relpath(os.path.join("lib", "module"))
-    # os.makedirs(mod_build_dir)
-    # mod_src_paths = [os.path.join(mod_src_dir, n) for n in tar_f.getnames()]
-    # mod_lib = compiler_inst.library(
-    #     mod_build_dir, mod_src_paths, compiler_options["generated_lib_opts"]
-    # )
-
-    # libs = []
-    # for lib_path in lib_paths:
-    #     # Split off the .micro-library extension
-    #     lib_dir_name = os.path.splitext(os.path.basename(lib_path))[0]
-    #     lib_dir = workspace.relpath(os.path.join("lib", lib_dir_name))
-
-    #     libs.append(micro_library.MicroLibrary.unarchive(lib_path, lib_dir))
-
-    # libs.append(mod_lib)
-
-    # runtime_build_dir = workspace.relpath(os.path.join("runtime"))
-    # os.makedirs(runtime_build_dir)
-    # print("build binary", runtime_build_dir)
-    # binary = compiler_inst.binary(runtime_build_dir, libs, compiler_options["bin_opts"])
-    ##create graph executor factory
-    # self, ir_mod, target, graph_json_str, libmod, libmod_name, params, function_metadata
-    # print("mehrdad: create project", file=sys.stdout)
-    # print("mehrdad: create project", file=sys.stderr)
-
-    # with open(tvm.utils)
-    # make a temp file and pass the path
+    temp_dir = utils.tempdir()
+    model_tar_file = temp_dir.path / "model.tar"
+    with open(model_tar_file, "wb+") as model_f:
+        model_f.write(mod_src_tar)
     
     workspace = Workspace(debug=False)
     project = generate_project(
         template_project_dir,
-        mod_src_tar,
+        str(model_tar_file),
         workspace.relpath("project"),
         json.loads(project_options),
     )
