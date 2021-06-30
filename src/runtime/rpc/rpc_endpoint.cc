@@ -152,7 +152,8 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
         }
       }
     }
-    LOG(ERROR) << "mehrdad HandleNextEvent: " << RPCCodeToString(status) << ", " << static_cast<int>(state_) << ", " << this->Ready();
+    LOG(ERROR) << "mehrdad HandleNextEvent: " << RPCCodeToString(status) << ", "
+               << static_cast<int>(state_) << ", " << this->Ready();
     std::swap(async_server_mode_, async_server_mode);
     std::swap(client_mode_, client_mode);
     return status;
@@ -195,7 +196,7 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
   void SendPackedSeq(const TVMValue* arg_values, const int* type_codes, int num_args,
                      bool client_mode) {
     LOG(ERROR) << "mehrdad: SendPackedSeq: " << num_args;
-    for (int i=0; i<num_args; i++) {
+    for (int i = 0; i < num_args; i++) {
       LOG(ERROR) << "mehrdad args: " << type_codes[i];
     }
     RPCReference::SendPackedSeq(arg_values, type_codes, num_args, client_mode, this);

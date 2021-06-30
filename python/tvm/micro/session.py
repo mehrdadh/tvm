@@ -344,7 +344,7 @@ def compile_and_create_micro_session(
     model_tar_file = temp_dir.path / "model.tar"
     with open(model_tar_file, "wb+") as model_f:
         model_f.write(mod_src_tar)
-    
+
     workspace = Workspace(debug=False)
     project = generate_project(
         template_project_dir,

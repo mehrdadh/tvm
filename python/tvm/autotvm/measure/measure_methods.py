@@ -503,6 +503,7 @@ class _WrappedBuildFunc:
             func, arg_info = _build_func_common(measure_input, **kwargs)
             # func.export_library(filename, self.build_func)
             from tvm.micro.model_library_format import export_model_library_format
+
             export_model_library_format(func, filename)
         except Exception as e:  # pylint: disable=broad-except
             logger.debug(f"{_WrappedBuildFunc.__name__}: {e}")

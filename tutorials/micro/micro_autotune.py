@@ -52,7 +52,7 @@ model.summary()
 
 import tvm
 from tvm import relay
-import numpy as np
+import tvm.micro
 
 inputs = {
     i.name.split(":", 2)[0]: [x if x is not None else 1 for x in i.shape.as_list()]
@@ -123,34 +123,18 @@ measure_option = tvm.autotvm.measure_option(builder=builder, runner=runner)
 #
 # In this tutorial, we'll just use the x86 host as an example runtime; however, you just need to
 # replace the `Flasher` and `Compiler` instances here to run autotuning on a bare metal device.
-import os
-import tvm.micro
 
-# will be removed
-# workspace = tvm.micro.Workspace()
-# import datetime
-# parent_dir = os.path.dirname(__file__)
-# filename = os.path.splitext(os.path.basename(__file__))[0]
-# workspace_root = os.path.join(
-#         f"{os.path.join(parent_dir, 'workspace')}_{filename}",
-#         datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S"),
-#     )
-# workspace_parent = os.path.dirname(workspace_root)
-# if not os.path.exists(workspace_parent):
-#         os.makedirs(workspace_parent)
-##############
+# template_project_dir = pathlib.Path(tvm.micro.get_standalone_crt_dir()) / "template" / "host"
+# module_loader = tvm.micro.autotvm_module_loader(
+#     str(template_project_dir),
+#     {"verbose": 1},
+# )
+# builder = tvm.autotvm.LocalBuilder(
+#     n_parallel=1, build_kwargs={"build_option": {"tir.disable_vectorize": True}}, do_fork=False
+# )  # do_fork=False needed to persist stateful builder.
+# runner = tvm.autotvm.LocalRunner(number=1, repeat=1, timeout=0, module_loader=module_loader)
 
-template_project_dir = pathlib.Path(tvm.micro.get_standalone_crt_dir()) / "template" / "host"
-module_loader = tvm.micro.autotvm_module_loader(
-    str(template_project_dir),
-    {"verbose": 1},
-)
-builder = tvm.autotvm.LocalBuilder(
-    n_parallel=1, build_kwargs={"build_option": {"tir.disable_vectorize": True}}, do_fork=False
-)  # do_fork=False needed to persist stateful builder.
-runner = tvm.autotvm.LocalRunner(number=1, repeat=1, timeout=0, module_loader=module_loader)
-
-measure_option = tvm.autotvm.measure_option(builder=builder, runner=runner)
+# measure_option = tvm.autotvm.measure_option(builder=builder, runner=runner)
 
 # %%
 # Autotuning on physical hardware
@@ -160,33 +144,29 @@ measure_option = tvm.autotvm.measure_option(builder=builder, runner=runner)
 #
 #  .. code-block:: python
 #
-# import os
-# import subprocess
-# import tvm.micro
-# from tvm.micro.contrib import zephyr
 
-# # workspace = tvm.micro.Workspace(debug=True)
-# template_project_dir = (
-#         pathlib.Path(__file__).parent
-#         / ".."
-#         / ".."
-#         / "apps"
-#         / "microtvm"
-#         / "zephyr"
-#         / "template_project"
-#     ).resolve()
-# module_loader = tvm.micro.autotvm_module_loader(
-#     template_project_dir,
-#     {"zephyr_board": BOARD, "west_cmd": "west", "verbose": 1},
-# )
-# builder = tvm.autotvm.LocalBuilder(
-#      n_parallel=1,
-#      build_kwargs={"build_option": {"tir.disable_vectorize": True}},
-#      do_fork=False,
-# )  # do_fork=False needed to persist stateful builder.
-# runner = tvm.autotvm.LocalRunner(number=1, repeat=1, timeout=0, module_loader=module_loader)
+# workspace = tvm.micro.Workspace(debug=True)
+template_project_dir = (
+    pathlib.Path(__file__).parent
+    / ".."
+    / ".."
+    / "apps"
+    / "microtvm"
+    / "zephyr"
+    / "template_project"
+).resolve()
+module_loader = tvm.micro.autotvm_module_loader(
+    template_project_dir,
+    {"zephyr_board": BOARD, "west_cmd": "west", "verbose": 1},
+)
+builder = tvm.autotvm.LocalBuilder(
+    n_parallel=1,
+    build_kwargs={"build_option": {"tir.disable_vectorize": True}},
+    do_fork=False,
+)  # do_fork=False needed to persist stateful builder.
+runner = tvm.autotvm.LocalRunner(number=1, repeat=1, timeout=0, module_loader=module_loader)
 
-# measure_option = tvm.autotvm.measure_option(builder=builder, runner=runner)
+measure_option = tvm.autotvm.measure_option(builder=builder, runner=runner)
 
 # import pdb; pdb.set_trace()
 
