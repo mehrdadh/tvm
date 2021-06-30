@@ -87,6 +87,12 @@ TARGET = tvm.target.target.micro("host")
 TARGET = tvm.target.target.micro("host")
 BOARD = "qemu_x86"  # or "stm32f746g_disco"
 
+# TARGET = tvm.target.target.micro("mps2_an521")
+# BOARD = "mps2_an521"
+
+# TARGET = tvm.target.target.micro("nrf5340dk")
+# BOARD = "nrf5340dk_nrf5340_cpuapp"
+
 #########################
 # Extracting tuning tasks
 #########################
@@ -106,12 +112,6 @@ with pass_context:
     # with tvm.transform.PassContext(opt_level=3):
     tasks = tvm.autotvm.task.extract_from_program(tvm_model["main"], {}, TARGET)
 assert len(tasks) > 0
-
-builder = tvm.autotvm.LocalBuilder()
-runner = tvm.autotvm.LocalRunner(number=1, repeat=1, timeout=0)
-
-measure_option = tvm.autotvm.measure_option(builder=builder, runner=runner)
-
 
 ######################
 # Configuring microTVM
