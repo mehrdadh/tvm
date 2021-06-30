@@ -78,18 +78,12 @@ class TemplateProject:
 
     def generate_project(self, graph_executor_factory, project_dir):
         """Generate a project given GraphRuntimeFactory."""
-        # model_library_dir = utils.tempdir()
-        # model_library_format_path = model_library_dir.relpath("model.tar")
-        # export_model_library_format(graph_executor_factory, model_library_format_path)
+        model_library_dir = utils.tempdir()
+        model_library_format_path = model_library_dir.relpath("model.tar")
+        export_model_library_format(graph_executor_factory, model_library_format_path)
 
-        # self._client.generate_project(
-        #     model_library_format_path=model_library_format_path,
-        #     standalone_crt_dir=get_standalone_crt_dir(),
-        #     project_dir=project_dir,
-        #     options=self._options,
-        # )
         self._client.generate_project(
-            model_library_format_path=graph_executor_factory,
+            model_library_format_path=model_library_format_path,
             standalone_crt_dir=get_standalone_crt_dir(),
             project_dir=project_dir,
             options=self._options,

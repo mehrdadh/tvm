@@ -374,6 +374,7 @@ ExportableModule = typing.Union[
     build_module.OperatorModule,
     executor_factory.AOTExecutorFactoryModule,
     executor_factory.GraphExecutorFactoryModule,
+    bytearray,
 ]
 
 
@@ -407,6 +408,11 @@ def export_model_library_format(mod: ExportableModule, file_name: typing.Union[s
         (executor_factory.AOTExecutorFactoryModule, executor_factory.GraphExecutorFactoryModule),
     ):
         _export_graph_model_library_format(mod, tempdir.path)
+    elif isinstance(mod, bytearray):
+        print("mehrdad mode: pathlib")
+        with open(file_name, "wb+") as f:
+            f.write(mod)
+        return file_name
     else:
         raise NotImplementedError(f"Don't know how to export module of type {mod.__class__!r}")
 
