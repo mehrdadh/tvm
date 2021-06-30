@@ -133,7 +133,6 @@ measure_option = tvm.autotvm.measure_option(builder=builder, runner=runner)
 #     n_parallel=1, build_kwargs={"build_option": {"tir.disable_vectorize": True}}, do_fork=False
 # )  # do_fork=False needed to persist stateful builder.
 # runner = tvm.autotvm.LocalRunner(number=1, repeat=1, timeout=0, module_loader=module_loader)
-
 # measure_option = tvm.autotvm.measure_option(builder=builder, runner=runner)
 
 # %%
@@ -145,7 +144,7 @@ measure_option = tvm.autotvm.measure_option(builder=builder, runner=runner)
 #  .. code-block:: python
 #
 
-# workspace = tvm.micro.Workspace(debug=True)
+workspace = tvm.micro.Workspace(debug=True)
 template_project_dir = (
     pathlib.Path(__file__).parent
     / ".."
@@ -156,7 +155,7 @@ template_project_dir = (
     / "template_project"
 ).resolve()
 module_loader = tvm.micro.autotvm_module_loader(
-    template_project_dir,
+    str(template_project_dir),
     {"zephyr_board": BOARD, "west_cmd": "west", "verbose": 1},
 )
 builder = tvm.autotvm.LocalBuilder(
@@ -165,10 +164,8 @@ builder = tvm.autotvm.LocalBuilder(
     do_fork=False,
 )  # do_fork=False needed to persist stateful builder.
 runner = tvm.autotvm.LocalRunner(number=1, repeat=1, timeout=0, module_loader=module_loader)
-
 measure_option = tvm.autotvm.measure_option(builder=builder, runner=runner)
 
-# import pdb; pdb.set_trace()
 
 ################
 # Run Autotuning

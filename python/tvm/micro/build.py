@@ -274,10 +274,6 @@ def build_static_runtime(
 
 
 def autotvm_module_loader(
-    # compiler_factory: CompilerFactory,
-    # compiler_options: dict = None,
-    # extra_libs: typing.Optional[typing.List[typing.Union[MicroLibrary, str]]] = None,
-    # workspace_kw: typing.Optional[dict] = None,
     template_project_dir: str,
     project_options: dict = None,
 ):
@@ -301,37 +297,9 @@ def autotvm_module_loader(
     workspace_kw : Optional[dict]
         Keyword args passed to the Workspace constructor.
     """
-    # if workspace_kw is None:
-    #     workspace_kw = {}
 
-    # common_libs = []
-
-    # TODO: currently these common dependencies are built locally, but we should consolidate all
-    # building to the runner. However, doing this means we need to either store the built
-    # libraries keying them by e.g. target configuration, or move to a model where the
-    # underlying build system (i.e. Zephyr, mBED, etc) lives on the runner. In the long run we
-    # prefer the latter, but this needs an RFC, so we leave this code here for now.
-    # workspace = Workspace(**workspace_kw)
-    # compiler = compiler_factory.instantiate()
-    # for lib_src_dir in (extra_libs or []) + get_runtime_libs("host-driven"):
-    #     lib_name = os.path.basename(lib_src_dir)
-    #     lib_build_dir = workspace.relpath(os.path.join("build", lib_name))
-    #     os.makedirs(lib_build_dir)
-
-    #     lib_srcs = []
-    #     for p in os.listdir(lib_src_dir):
-    #         if RUNTIME_SRC_REGEX.match(p):
-    #             lib_srcs.append(os.path.join(lib_src_dir, p))
-
-    #     lib_archive_dir = workspace.relpath(os.path.join("archive", lib_name))
-    #     os.makedirs(lib_archive_dir)
-    #     lib_archive_path = os.path.join(lib_archive_dir, f"{lib_name}.micro-library")
-    #     common_libs.append(
-    #         compiler.library(lib_build_dir, lib_srcs, compiler_options["lib_opts"]).archive(
-    #             lib_archive_path
-    #         )
-    #     )
-    # import pdb; pdb.set_trace()
+    if type(template_project_dir) is not str:
+        raise TypeError(f"Incorrect type {type(template_project_dir)}.")
 
     @contextlib.contextmanager
     def module_loader(remote_kw, build_result):
@@ -346,6 +314,7 @@ def autotvm_module_loader(
         print(f"mehrdad tracker connect done", file=sys.stderr)
         print(remote_kw)
         print(f"mehrdad: type: {type(build_result_bin)}")
+        print(type(template_project_dir))
         print(template_project_dir)
         print(project_options)
 
