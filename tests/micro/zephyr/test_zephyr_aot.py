@@ -203,7 +203,7 @@ def test_tflite(platform, west_cmd, skip_build, tvm_debug):
     transport = session_kw["flasher"].flash(session_kw["binary"])
     transport.open()
     transport.write(b"start\n", timeout_sec=5)
-
+    
     result_line = _get_message(transport, "#result")
     result_line = result_line.strip("\n")
     result_line = result_line.split(":")
@@ -211,7 +211,6 @@ def test_tflite(platform, west_cmd, skip_build, tvm_debug):
     time = int(result_line[2])
     logging.info(f"Result: {result}\ttime: {time} ms")
     assert result == 8
-
 
 def test_qemu_make_fail(platform, west_cmd, skip_build, tvm_debug):
     """Testing QEMU make fail."""
