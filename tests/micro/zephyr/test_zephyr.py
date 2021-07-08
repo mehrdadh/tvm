@@ -71,11 +71,21 @@ def _make_session(model, target, zephyr_board, west_cmd, mod, build_config):
     workspace = tvm.micro.Workspace(debug=True, root=workspace_root)
 
     template_project_dir = (
-        pathlib.Path(__file__).parent / ".." / ".." / ".." / "apps" / "microtvm" / "zephyr" / "template_project").resolve()
+        pathlib.Path(__file__).parent
+        / ".."
+        / ".."
+        / ".."
+        / "apps"
+        / "microtvm"
+        / "zephyr"
+        / "template_project"
+    ).resolve()
     project = tvm.micro.generate_project(
-        str(template_project_dir), mod, workspace.relpath("project"), {"zephyr_board": zephyr_board,
-                                                                       "west_cmd": west_cmd,
-                                                                       "verbose": 0})
+        str(template_project_dir),
+        mod,
+        workspace.relpath("project"),
+        {"zephyr_board": zephyr_board, "west_cmd": west_cmd, "verbose": 0},
+    )
     project.build()
     project.flash()
     return tvm.micro.Session(project.transport())

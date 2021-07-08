@@ -37,7 +37,7 @@ IS_TEMPLATE = not (API_SERVER_DIR / MODEL_LIBRARY_FORMAT_RELPATH).exists()
 
 
 def check_call(cmd_args, *args, **kwargs):
-    cwd_str = '' if 'cwd' not in kwargs else f" (in cwd: {kwargs['cwd']})"
+    cwd_str = "" if "cwd" not in kwargs else f" (in cwd: {kwargs['cwd']})"
     _LOG.info("run%s: %s", cwd_str, " ".join(shlex.quote(a) for a in cmd_args))
     return subprocess.check_call(cmd_args, *args, **kwargs)
 
@@ -119,7 +119,9 @@ def _get_device_args(options, cmake_entries):
 
     raise BoardError(
         f"Don't know how to find serial terminal for board {CMAKE_CACHE['BOARD']} with flash "
-        f"runner {flash_runner}")
+        f"runner {flash_runner}"
+    )
+
 
 # kwargs passed to usb.core.find to find attached boards for the openocd flash runner.
 BOARD_USB_FIND_KW = {
@@ -127,6 +129,7 @@ BOARD_USB_FIND_KW = {
     "nucleo_f746zg": {"idVendor": 0x0483, "idProduct": 0x374B},
     "stm32f746g_disco": {"idVendor": 0x0483, "idProduct": 0x374B},
 }
+
 
 def openocd_serial(options):
     """Find the serial port to use for a board with OpenOCD flash strategy."""
@@ -159,24 +162,21 @@ def _get_nrf_device_args(options):
     nrfjprog_args = ["nrfjprog", "--ids"]
     nrfjprog_ids = subprocess.check_output(nrfjprog_args, encoding="utf-8")
     if not nrfjprog_ids.strip("\n"):
-        raise BoardAutodetectFailed(
-            f'No attached boards recognized by {" ".join(nrfjprog_args)}'
-        )
+        raise BoardAutodetectFailed(f'No attached boards recognized by {" ".join(nrfjprog_args)}')
 
     boards = nrfjprog_ids.split("\n")[:-1]
     if len(boards) > 1:
-        if options['nrfjprog_snr'] is None:
+        if options["nrfjprog_snr"] is None:
             raise BoardError(
-                "Multiple boards connected; specify one with nrfjprog_snr=: "
-                f'{", ".join(boards)}'
+                "Multiple boards connected; specify one with nrfjprog_snr=: " f'{", ".join(boards)}'
             )
 
-        if str(options['nrfjprog_snr']) not in boards:
+        if str(options["nrfjprog_snr"]) not in boards:
             raise BoardError(
                 f"nrfjprog_snr ({options['nrfjprog_snr']}) not found in {nrfjprog_args}: {boards}"
             )
 
-        return ["--snr", options['nrfjprog_snr']]
+        return ["--snr", options["nrfjprog_snr"]]
 
     if not boards:
         return []
@@ -185,20 +185,31 @@ def _get_nrf_device_args(options):
 
 
 PROJECT_OPTIONS = [
-    server.ProjectOption("gdbserver_port", help=("If given, port number to use when running the "
-                                                 "local gdbserver")),
-    server.ProjectOption("openocd_serial", help=("When used with OpenOCD targets, serial # of the "
-                                                 "attached board to use")),
-    server.ProjectOption("nrfjprog_snr", help=("When used with nRF targets, serial # of the "
-                                               "attached board to use, from nrfjprog")),
+    server.ProjectOption(
+        "gdbserver_port", help=("If given, port number to use when running the " "local gdbserver")
+    ),
+    server.ProjectOption(
+        "openocd_serial",
+        help=("When used with OpenOCD targets, serial # of the " "attached board to use"),
+    ),
+    server.ProjectOption(
+        "nrfjprog_snr",
+        help=(
+            "When used with nRF targets, serial # of the " "attached board to use, from nrfjprog"
+        ),
+    ),
     server.ProjectOption("verbose", help="Run build with verbose output"),
-    server.ProjectOption("west_cmd",
-                         help=("Path to the west tool. If given, supersedes both the zephyr_base "
-                               "option and ZEPHYR_BASE environment variable.")),
-    server.ProjectOption("zephyr_base",
-                         help="Path to the zephyr base directory."),
+    server.ProjectOption(
+        "west_cmd",
+        help=(
+            "Path to the west tool. If given, supersedes both the zephyr_base "
+            "option and ZEPHYR_BASE environment variable."
+        ),
+    ),
+    server.ProjectOption("zephyr_base", help="Path to the zephyr base directory."),
     server.ProjectOption("zephyr_board", help="Name of the Zephyr board to build for"),
 ]
+
 
 class SubprocessEnv(object):
     def __init__(self, default_overrides):
@@ -211,6 +222,7 @@ class SubprocessEnv(object):
 
         return subprocess.check_output(cmd, env=env, **kw, universal_newlines=True)
 
+
 class Handler(server.ProjectAPIHandler):
     def __init__(self):
         super(Handler, self).__init__()
@@ -220,8 +232,11 @@ class Handler(server.ProjectAPIHandler):
         return server.ServerInfo(
             platform_name="zephyr",
             is_template=IS_TEMPLATE,
-            model_library_format_path="" if IS_TEMPLATE else (API_SERVER_DIR / MODEL_LIBRARY_FORMAT_RELPATH),
-            project_options=PROJECT_OPTIONS)
+            model_library_format_path=""
+            if IS_TEMPLATE
+            else (API_SERVER_DIR / MODEL_LIBRARY_FORMAT_RELPATH),
+            project_options=PROJECT_OPTIONS,
+        )
 
     # These files and directories will be recursively copied into generated projects from the CRT.
     CRT_COPY_ITEMS = ("include", "Makefile", "src")
@@ -269,7 +284,9 @@ class Handler(server.ProjectAPIHandler):
         # Populate crt-config.h
         crt_config_dir = project_dir / "crt_config"
         crt_config_dir.mkdir()
-        shutil.copy2(API_SERVER_DIR / "crt_config" / "crt_config.h", crt_config_dir / "crt_config.h")
+        shutil.copy2(
+            API_SERVER_DIR / "crt_config" / "crt_config.h", crt_config_dir / "crt_config.h"
+        )
 
         # Populate src/
         src_dir = project_dir / "src"
@@ -300,14 +317,12 @@ class Handler(server.ProjectAPIHandler):
         return "qemu" in options["zephyr_board"]
 
     def flash(self, options):
-        print(f"mehrdad flash inside: {options}")
-        
         env = {}
         if "zephyr_base" in options.keys():
             env["ZEPHYR_BASE"] = options["zephyr_base"]
         else:
             env["ZEPHYR_BASE"] = os.environ["ZEPHYR_BASE"]
-        
+
         subprocess_env = SubprocessEnv(env)
 
         if self._is_qemu(options):
@@ -340,7 +355,7 @@ class Handler(server.ProjectAPIHandler):
 
     def open_transport(self, options):
         if self._is_qemu(options):
-            transport =self._open_qemu_transport(options)
+            transport = self._open_qemu_transport(options)
         else:
             transport = ZephyrSerialTransport(options)
 
@@ -412,8 +427,10 @@ class ZephyrSerialTransport:
         serial_number = openocd_serial(options)
         ports = [p for p in serial.tools.list_ports.grep(serial_number)]
         if len(ports) != 1:
-            raise Exception(f"_find_openocd_serial_port: expected 1 port to match {serial_number}, "
-                            f"found: {ports!r}")
+            raise Exception(
+                f"_find_openocd_serial_port: expected 1 port to match {serial_number}, "
+                f"found: {ports!r}"
+            )
 
         return ports[0].device
 
@@ -547,5 +564,5 @@ class ZephyrQemuTransport:
         return num_written
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     server.main(Handler())

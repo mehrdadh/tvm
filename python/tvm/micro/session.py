@@ -319,7 +319,7 @@ def compile_and_create_micro_session(
 
 
     project_options: dict
-        
+
     """
     global RPC_SESSION
 

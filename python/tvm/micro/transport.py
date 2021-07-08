@@ -271,5 +271,4 @@ class TransportLogger(Transport):
             )
 
 
-
 TransportContextManager = typing.ContextManager[Transport]

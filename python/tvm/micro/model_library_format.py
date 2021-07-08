@@ -165,7 +165,9 @@ def _build_function_memory_map(function_metadata):
         for func_name, finfo in function_metadata.items():
             if func_name == MAIN_FUNC_NAME_STR:
                 continue
-            assert len(finfo.constant_sizes.items()) == num_targets, f"{func_name}: found {finfo.constant_sizes!r} vs {num_targets}"
+            assert (
+                len(finfo.constant_sizes.items()) == num_targets
+            ), f"{func_name}: found {finfo.constant_sizes!r} vs {num_targets}"
             assert len(finfo.io_sizes.items()) == num_targets
             target = finfo.workspace_sizes.items()[i][0]
             workspace_size = finfo.workspace_sizes.items()[i][1]

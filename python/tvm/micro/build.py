@@ -23,6 +23,7 @@ import json
 import logging
 import os
 import re
+import sys
 import typing
 from tvm.contrib import utils
 from tvm._ffi import libinfo
@@ -302,21 +303,10 @@ def autotvm_module_loader(
 
     @contextlib.contextmanager
     def module_loader(remote_kw, build_result):
-        print(f"mehrdad: {build_result.filename}")
-
         with open(build_result.filename, "rb") as build_file:
             build_result_bin = build_file.read()
 
         tracker = _rpc.connect_tracker(remote_kw["host"], remote_kw["port"])
-        import sys
-
-        print(f"mehrdad tracker connect done", file=sys.stderr)
-        print(remote_kw)
-        print(f"mehrdad: type: {type(build_result_bin)}")
-        print(type(template_project_dir))
-        print(template_project_dir)
-        print(project_options)
-
         remote = tracker.request(
             remote_kw["device_key"],
             priority=remote_kw["priority"],
@@ -328,7 +318,6 @@ def autotvm_module_loader(
                 json.dumps(project_options),
             ],
         )
-        logging.debug("mehrdad tracker request done")
         system_lib = remote.get_function("runtime.SystemLib")()
         yield remote, system_lib
 
