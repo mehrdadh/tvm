@@ -176,14 +176,19 @@ def test_conv3d():
     verify_conv3d("float32", "float32", tensor_format=0, groups=2)
 
 
-def verify_softmax(shape, axis, dtype="float32"):
+def verify_softmax(shape, axis, dtype="float32", log_softmax=False):
+    cudnn_op = cudnn.log_softmax if log_softmax else cudnn.softmax
+    testing_op = (
+        tvm.topi.testing.log_softmax_python if log_softmax else tvm.topi.testing.softmax_python
+    )
+
     A = te.placeholder(shape, dtype=dtype, name="A")
-    B = cudnn.softmax(A, axis)
+    B = cudnn_op(A, axis)
     s = te.create_schedule([B.op])
 
     dev = tvm.cuda(0)
     a_np = np.random.uniform(size=shape).astype(dtype)
-    b_np = tvm.topi.testing.softmax_python(a_np)
+    b_np = testing_op(a_np)
     a = tvm.nd.array(a_np, dev)
     b = tvm.nd.array(b_np, dev)
     f = tvm.build(s, [A, B], target="cuda --host=llvm", name="softmax")
@@ -191,15 +196,20 @@ def verify_softmax(shape, axis, dtype="float32"):
     tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-3)
 
 
-def verify_softmax_4d(shape, dtype="float32"):
+def verify_softmax_4d(shape, dtype="float32", log_softmax=False):
+    cudnn_op = cudnn.log_softmax if log_softmax else cudnn.softmax
+    testing_op = (
+        tvm.topi.testing.log_softmax_python if log_softmax else tvm.topi.testing.softmax_python
+    )
+
     A = te.placeholder(shape, dtype=dtype, name="A")
-    B = cudnn.softmax(A, axis=1)
+    B = cudnn_op(A, axis=1)
     s = te.create_schedule([B.op])
 
     dev = tvm.cuda(0)
     n, c, h, w = shape
     a_np = np.random.uniform(size=shape).astype(dtype)
-    b_np = tvm.topi.testing.softmax_python(a_np.transpose(0, 2, 3, 1).reshape(h * w, c))
+    b_np = testing_op(a_np.transpose(0, 2, 3, 1).reshape(h * w, c))
     b_np = b_np.reshape(n, h, w, c).transpose(0, 3, 1, 2)
     a = tvm.nd.array(a_np, dev)
     b = tvm.nd.array(b_np, dev)
@@ -216,6 +226,91 @@ def test_softmax():
     verify_softmax((1, 5), -1, "float64")
     verify_softmax_4d((1, 16, 256, 256))
     verify_softmax_4d((1, 16, 256, 256), "float64")
+
+    verify_softmax((32, 10), -1, log_softmax=True)
+    verify_softmax((3, 4), -1, log_softmax=True)
+    verify_softmax((1, 5), -1, "float64", log_softmax=True)
+    verify_softmax_4d((1, 16, 256, 256), log_softmax=True)
+    verify_softmax_4d((1, 16, 256, 256), "float64", log_softmax=True)
+
+
+test_kwargs_default_2d = {
+    "tensor_format": 0,
+    "pad": [1, 1],
+    "stride": [1, 1],
+    "dilation": [1, 1],
+    "x_shape": [16, 4, 32, 32],
+    "w_shape": [8, 4, 3, 3],
+    "groups": 1,
+    "conv_dtype": "float32",
+    "data_dtype": "float32",
+}
+test_kwargs_default_3d = {
+    "tensor_format": 0,
+    "pad": [1, 1, 1],
+    "stride": [1, 1, 1],
+    "dilation": [1, 1, 1],
+    "x_shape": [16, 4, 32, 32, 32],
+    "w_shape": [8, 4, 3, 3, 3],
+    "groups": 1,
+    "conv_dtype": "float32",
+    "data_dtype": "float32",
+}
+conv_output_shape_conditions = {
+    "2d_small": test_kwargs_default_2d,
+    "2d_large": {
+        **test_kwargs_default_2d,
+        "x_shape": [16, 32, 512, 1024],
+        "w_shape": [8, 32, 5, 5],
+    },
+    "2d_pad": {**test_kwargs_default_2d, "pad": [2, 3]},
+    "2d_stride": {**test_kwargs_default_2d, "stride": [2, 3]},
+    "2d_dilation": {**test_kwargs_default_2d, "dilation": [2, 3]},
+    "2d_groups": {**test_kwargs_default_2d, "groups": 4, "w_shape": [8, 1, 3, 3]},
+    "2d_NHWC": {
+        **test_kwargs_default_2d,
+        "tensor_format": 1,
+        "x_shape": [16, 32, 32, 4],
+        "w_shape": [8, 3, 3, 4],
+    },
+    "2d_NCHW_VECT_C": {
+        **test_kwargs_default_2d,
+        "tensor_format": 2,
+        "w_shape": [8, 16, 3, 3],
+        "data_dtype": "int8x4",
+    },
+    "3d_small": test_kwargs_default_3d,
+    "3d_large": {
+        **test_kwargs_default_3d,
+        "x_shape": [16, 32, 64, 128, 256],
+        "w_shape": [8, 32, 5, 5, 5],
+    },
+    "3d_pad": {**test_kwargs_default_3d, "pad": [2, 3, 4]},
+    "3d_stride": {**test_kwargs_default_3d, "stride": [2, 3, 4]},
+    "3d_dilation": {**test_kwargs_default_3d, "dilation": [2, 3, 4]},
+    "3d_groups": {**test_kwargs_default_3d, "groups": 4, "w_shape": [8, 1, 3, 3, 3]},
+    "3d_NCHW_VECT_C": {
+        **test_kwargs_default_3d,
+        "tensor_format": 2,
+        "w_shape": [8, 16, 3, 3, 3],
+        "data_dtype": "int8x4",
+    },
+}
+
+
+@pytest.fixture(
+    params=[pytest.param(kwargs, id=name) for name, kwargs in conv_output_shape_conditions.items()]
+)
+def conv_output_shape_kwargs(request):
+    return request.param
+
+
+@tvm.testing.requires_gpu
+@requires_cudnn
+def test_conv_output_shape(conv_output_shape_kwargs):
+    shape_from_cudnn = cudnn._conv_output_shape_from_cudnn(**conv_output_shape_kwargs)
+    shape_from_python = cudnn.conv_output_shape(**conv_output_shape_kwargs)
+    assert shape_from_cudnn == shape_from_python
 
 
 test_kwargs_default_2d = {
