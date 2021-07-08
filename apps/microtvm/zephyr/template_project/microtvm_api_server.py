@@ -199,6 +199,16 @@ PROJECT_OPTIONS = [
     server.ProjectOption("zephyr_board", help="Name of the Zephyr board to build for"),
 ]
 
+class SubprocessEnv(object):
+    def __init__(self, default_overrides):
+        self.default_overrides = default_overrides
+
+    def run(self, cmd, **kw):
+        env = dict(os.environ)
+        for k, v in self.default_overrides.items():
+            env[k] = v
+
+        return subprocess.check_output(cmd, env=env, **kw, universal_newlines=True)
 
 class Handler(server.ProjectAPIHandler):
     def __init__(self):
@@ -289,6 +299,16 @@ class Handler(server.ProjectAPIHandler):
         return "qemu" in options["zephyr_board"]
 
     def flash(self, options):
+        print(f"mehrdad flash inside: {options}")
+        
+        env = {}
+        if "zephyr_base" in options.keys():
+            env["ZEPHYR_BASE"] = options["zephyr_base"]
+        else:
+            env["ZEPHYR_BASE"] = os.environ["ZEPHYR_BASE"]
+        
+        subprocess_env = SubprocessEnv(env)
+
         if self._is_qemu(options):
             return  # NOTE: qemu requires no flash step--it is launched from open_transport.
 
@@ -302,7 +322,7 @@ class Handler(server.ProjectAPIHandler):
         if zephyr_board.startswith("nrf5340dk") and _get_flash_runner() == "nrfjprog":
             recover_args = ["nrfjprog", "--recover"]
             recover_args.extend(_get_nrf_device_args(options))
-            self._subprocess_env.run(recover_args, cwd=build_dir)
+            subprocess_env.run(recover_args, cwd=BUILD_DIR)
 
         check_call(["make", "flash"], cwd=API_SERVER_DIR / "build")
 
