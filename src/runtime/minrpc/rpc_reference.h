@@ -125,7 +125,7 @@ inline const char* RPCCodeToString(RPCCode code) {
     case RPCCode::kDevAllocDataWithScope:
       return "kDevAllocDataWithScope";
     default:
-      return "Not supported code";
+      return "Not supported RPCCode.";
   }
 }
 
@@ -367,7 +367,6 @@ struct RPCReference {
           break;
         }
         default: {
-          // LOG(ERROR) << "mehrdad: default";
           channel->ThrowError(RPCServerStatus::kUnknownTypeCode);
           break;
         }

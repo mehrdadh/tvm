@@ -402,7 +402,6 @@ def export_model_library_format(mod: ExportableModule, file_name: typing.Union[s
     ):
         _export_graph_model_library_format(mod, tempdir.path)
     elif isinstance(mod, bytearray):
-        print("mehrdad mode: pathlib")
         with open(file_name, "wb+") as f:
             f.write(mod)
         return file_name

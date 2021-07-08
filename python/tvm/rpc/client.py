@@ -399,7 +399,6 @@ class TrackerSession(object):
                 if value[0] != base.TrackerCode.SUCCESS:
                     raise RuntimeError("Invalid return value %s" % str(value))
                 url, port, matchkey = value[1]
-                print(f"mehrdad value: {value}")
                 return connect(
                     url,
                     port,
@@ -513,7 +512,6 @@ def connect(url, port, key="", session_timeout=0, session_constructor_args=None)
         session_constructor_args = session_constructor_args if session_constructor_args else []
         if not isinstance(session_constructor_args, (list, tuple)):
             raise TypeError("Expect the session constructor to be a list or tuple")
-        print(f"mehrdad url : {url}, {port}, {key}")
         sess = _ffi_api.Connect(url, port, key, *session_constructor_args)
     except NameError:
         raise RuntimeError("Please compile with USE_RPC=1")

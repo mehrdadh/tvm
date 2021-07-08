@@ -21,11 +21,8 @@ import io
 import json
 import logging
 import os
-import tarfile
 import tempfile
 import sys
-
-from tvm.contrib import utils
 
 from ..error import register_error
 from .._ffi import get_global_func, register_func
@@ -37,7 +34,6 @@ from .transport import TransportLogger
 from . import build
 from . import compiler
 from . import micro_binary
-from . import micro_library
 from .project import generate_project
 from . import Workspace
 
@@ -306,46 +302,31 @@ def create_micro_session(
 
 @register_func("tvm.micro.compile_and_create_micro_session")
 def compile_and_create_micro_session(
-    # compiler_factory_json: bytes,
-    mod_src_tar: bytes,
+    mod_src_bytes: bytes,
     template_project_dir: str,
     project_options: dict = None,
-    # compiler_options_json: str,
-    # lib_paths_json: str,
-    # workspace_kw_json: str,
 ):
     """Compile the given libraries and sources into a MicroBinary, then invoke create_micro_session.
 
     Parameters
     ----------
-    compiler_factory_json : bytes
-        JSON that can be used to create a CompilerFactory with CompilerFactory.from_json.
-
-    mod_src_tar : bytes
+    mod_src_bytes : bytes
         The content of a tarfile which contains the TVM-generated sources which together form the
         SystemLib. This tar is expected to be created by export_library. The tar will be extracted
         into a directory and the sources compiled into a MicroLibrary using the Compiler.
 
-    compiler_options_json : str
-        JSON representation of the compiler options (i.e. returned from
-        tvm.micro.get_default_options()) which are passed to library() and binary() calls.
+    template_project_dir: str
 
-    lib_paths_json : str
-        JSON-encoded list of paths to files, each produced by MicroLibrary.archive(). Each
-        MicroLibrary will be unarchived and added to the list of libs included in the MicroBinary.
-        NOTE: in the future, the sources to these libraries should be supplied and compilation will
-        occur in this function.
 
-    workspace_kw_json : str
-        JSON-encoded keyword args to the Workspace constructor, used for temporary storage for this
-        compilation.
+    project_options: dict
+        
     """
     global RPC_SESSION
 
     workspace = Workspace(debug=False)
     project = generate_project(
         template_project_dir,
-        mod_src_tar,
+        mod_src_bytes,
         workspace.relpath("project"),
         json.loads(project_options),
     )
