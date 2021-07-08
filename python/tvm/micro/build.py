@@ -29,7 +29,6 @@ from tvm._ffi import libinfo
 from tvm import rpc as _rpc
 
 from .._ffi import libinfo
-from .micro_library import MicroLibrary
 from . import model_library_format
 
 

@@ -127,7 +127,6 @@ class Session:
         Session :
             Returns self.
         """
-        print(f"mehrdad: self.transport_context_manager: {self.transport_context_manager}")
         self.transport = TransportLogger(
             self.session_name, self.transport_context_manager, level=logging.ERROR
         ).__enter__()

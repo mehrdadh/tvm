@@ -123,6 +123,7 @@ def _get_device_args(options, cmake_entries):
 
 # kwargs passed to usb.core.find to find attached boards for the openocd flash runner.
 BOARD_USB_FIND_KW = {
+    "nucleo_l4r5zi": {"idVendor": 0x0483, "idProduct": 0x374B},
     "nucleo_f746zg": {"idVendor": 0x0483, "idProduct": 0x374B},
     "stm32f746g_disco": {"idVendor": 0x0483, "idProduct": 0x374B},
 }
