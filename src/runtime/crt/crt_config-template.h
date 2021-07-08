@@ -24,6 +24,12 @@
 #ifndef TVM_RUNTIME_CRT_CRT_CONFIG_TEMPLATE_H_
 #define TVM_RUNTIME_CRT_CRT_CONFIG_TEMPLATE_H_
 
+/*! Log level of the CRT runtime */
+#define TVM_CRT_LOG_LEVEL TVM_CRT_LOG_LEVEL_DEBUG
+
+/*! Support low-level debugging in MISRA-C runtime */
+#define TVM_CRT_DEBUG 0
+
 /*! Maximum supported dimension in NDArray */
 #define TVM_CRT_MAX_NDIM 6
 
@@ -31,7 +37,7 @@
 #define TVM_CRT_MAX_ARGS 10
 
 /*! Size of the global function registry, in bytes. */
-#define TVM_CRT_GLOBAL_FUNC_REGISTRY_SIZE_BYTES 200
+#define TVM_CRT_GLOBAL_FUNC_REGISTRY_SIZE_BYTES 250
 
 /*! Maximum number of registered modules. */
 #define TVM_CRT_MAX_REGISTERED_MODULES 2

@@ -46,7 +46,6 @@ if(USE_MICRO)
          "src/runtime/crt/graph_executor *.c -> src/runtime/crt/graph_executor"
          "src/runtime/crt/aot_executor *.c -> src/runtime/crt/aot_executor"
          "src/runtime/crt/graph_executor_module *.c -> src/runtime/crt/graph_executor_module"
-         "src/runtime/crt/host crt_config.h -> template/host"
          "src/runtime/crt/host *.cc -> template/host"
          "src/runtime/crt/memory *.c -> src/runtime/crt/memory"
          "src/runtime/crt/microtvm_rpc_common *.cc -> src/runtime/crt/microtvm_rpc_common"
@@ -104,7 +103,7 @@ if(USE_MICRO)
     endforeach()
 
     set(make_common_args
-        "CRT_CONFIG=template/host/crt_config.h"
+        "CRT_CONFIG=${CMAKE_SOURCE_DIR}/src/runtime/micro/crt_config.h"
         "BUILD_DIR=${host_build_dir_abspath}"
         "EXTRA_CFLAGS=-fPIC"
         "EXTRA_CXXFLAGS=-fPIC"
