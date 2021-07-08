@@ -23,7 +23,7 @@ import logging
 import string
 import typing
 
-from ..project_api.server import IoTimeoutError, TransportTimeouts, TransportClosedError
+from .project_api.server import IoTimeoutError, TransportTimeouts, TransportClosedError
 
 _LOG = logging.getLogger(__name__)
 
