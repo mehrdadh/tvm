@@ -43,7 +43,6 @@ class UnsupportedInModelLibraryFormatError(Exception):
 
 def _populate_codegen_dir(mod, codegen_dir: str, module_name: str = None):
     """Populate the codegen sub-directory as part of a Model Library Format export.
-
     Parameters
     ----------
     mod : tvm.runtime.Module
@@ -52,7 +51,6 @@ def _populate_codegen_dir(mod, codegen_dir: str, module_name: str = None):
         Path to the codegen directory on disk.
     module_name: Optional[str]
         Name used to prefix the generated source files
-
     """
     dso_modules = mod._collect_dso_modules()
     dso_module_handles = [m.handle.value for m in dso_modules]
@@ -97,12 +95,10 @@ def _build_memory_map(mod):
 
 def _build_sid_map(graph_json):
     """Build a simpler storage id info map from graph JSON.
-
     Parameters
     ----------
     graph_json : str
         String representation of the graph_json created from tvm.relay.build().
-
     Returns
     -------
     list :
@@ -142,12 +138,10 @@ def _build_function_memory_map(function_metadata):
     """Build a simple map that shows how much workspace is required to execute
     each primitive function. The main_func describes how much memory is required
     to execute the main control code.
-
     Parameters
     ----------
     function_metadata : Map<String, FunctionInfo>
         This contains all the compiled metadata on a function basis
-
     Returns
     -------
     dict :
@@ -232,7 +226,6 @@ def _export_graph_model_library_format(
     mod: executor_factory.ExecutorFactoryModule, tempdir: pathlib.Path
 ):
     """Export a tvm.relay.build artifact in Model Library Format.
-
     Parameters
     ----------
     mod : tvm.relay.backend.executor_factory.ExecutorFactoryModule
@@ -333,7 +326,6 @@ def _write_tir_and_build_operator_memory_map(src_dir, targets, ir_module_by_targ
 
 def _export_operator_model_library_format(mod: build_module.OperatorModule, tempdir):
     """Export the result of tvm.build() in Model Library Format.
-
     Parameters
     ----------
     mod : runtime.Module
@@ -378,24 +370,20 @@ ExportableModule = typing.Union[
     build_module.OperatorModule,
     executor_factory.AOTExecutorFactoryModule,
     executor_factory.GraphExecutorFactoryModule,
-    bytearray,
 ]
 
 
 def export_model_library_format(mod: ExportableModule, file_name: typing.Union[str, pathlib.Path]):
     """Export the build artifact in Model Library Format.
-
     This function creates a .tar archive containing the build artifacts in a standardized
     layout. It's intended to allow downstream automation to build TVM artifacts against the C
     runtime.
-
     Parameters
     ----------
     mod : ExportableModule
         The return value of tvm.build or tvm.relay.build.
     file_name : str
         Path to the .tar archive to generate.
-
     Returns
     -------
     file_name : str
@@ -412,11 +400,6 @@ def export_model_library_format(mod: ExportableModule, file_name: typing.Union[s
         (executor_factory.AOTExecutorFactoryModule, executor_factory.GraphExecutorFactoryModule),
     ):
         _export_graph_model_library_format(mod, tempdir.path)
-    elif isinstance(mod, bytearray):
-        print("mehrdad mode: pathlib")
-        with open(file_name, "wb+") as f:
-            f.write(mod)
-        return file_name
     else:
         raise NotImplementedError(f"Don't know how to export module of type {mod.__class__!r}")
 
