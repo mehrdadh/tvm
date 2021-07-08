@@ -71,21 +71,11 @@ def _make_session(model, target, zephyr_board, west_cmd, mod, build_config):
     workspace = tvm.micro.Workspace(debug=True, root=workspace_root)
 
     template_project_dir = (
-        pathlib.Path(__file__).parent
-        / ".."
-        / ".."
-        / ".."
-        / "apps"
-        / "microtvm"
-        / "zephyr"
-        / "template_project"
-    ).resolve()
+        pathlib.Path(__file__).parent / ".." / ".." / ".." / "apps" / "microtvm" / "zephyr" / "template_project").resolve()
     project = tvm.micro.generate_project(
-        str(template_project_dir),
-        mod,
-        workspace.relpath("project"),
-        {"zephyr_board": zephyr_board, "west_cmd": west_cmd, "verbose": 0},
-    )
+        str(template_project_dir), mod, workspace.relpath("project"), {"zephyr_board": zephyr_board,
+                                                                       "west_cmd": west_cmd,
+                                                                       "verbose": 0})
     project.build()
     project.flash()
     return tvm.micro.Session(project.transport())
@@ -310,8 +300,8 @@ def check_result(
             tvm.testing.assert_allclose(out.numpy(), results[idx], rtol=TOL, atol=TOL)
 
 
-def test_byoc_utvm(platform, west_cmd, skip_build, tvm_debug):
-    """This is a simple test case to check BYOC capabilities of uTVM"""
+def test_byoc_microtvm(platform, west_cmd, skip_build, tvm_debug):
+    """This is a simple test case to check BYOC capabilities of microTVM"""
     model, zephyr_board = PLATFORMS[platform]
     build_config = {"skip_build": skip_build, "debug": tvm_debug}
     x = relay.var("x", shape=(10, 10))

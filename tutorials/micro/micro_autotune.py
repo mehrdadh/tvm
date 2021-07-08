@@ -20,7 +20,7 @@
 
 Autotuning with micro TVM
 =========================
-**Author**: `Andrew Reusch <https://github.com/areusch>`_
+**Author**: `Andrew Reusch <https://github.com/areusch>`_, `Mehrdad Hessar <https://github.com/mehrdadh>`
 
 This tutorial explains how to autotune a model using the C runtime.
 """
@@ -84,14 +84,14 @@ TARGET = tvm.target.target.micro("host")
 # TARGET = tvm.target.target.micro("stm32f746xx")
 # BOARD = "nucleo_f746zg"  # or "stm32f746g_disco"
 
-# TARGET = tvm.target.target.micro("host")
-# BOARD = "qemu_x86"  # or "stm32f746g_disco"
+TARGET = tvm.target.target.micro("host")
+BOARD = "qemu_x86"  # or "stm32f746g_disco"
 
 # TARGET = tvm.target.target.micro("mps2_an521")
 # BOARD = "mps2_an521"
 
-TARGET = tvm.target.target.micro("nrf5340dk")
-BOARD = "nrf5340dk_nrf5340_cpuapp"
+# TARGET = tvm.target.target.micro("nrf5340dk")
+# BOARD = "nrf5340dk_nrf5340_cpuapp"
 
 #########################
 # Extracting tuning tasks
@@ -124,16 +124,16 @@ assert len(tasks) > 0
 # In this tutorial, we'll just use the x86 host as an example runtime; however, you just need to
 # replace the `Flasher` and `Compiler` instances here to run autotuning on a bare metal device.
 
-# template_project_dir = pathlib.Path(tvm.micro.get_standalone_crt_dir()) / "template" / "host"
-# module_loader = tvm.micro.autotvm_module_loader(
-#     str(template_project_dir),
-#     {"verbose": 1},
-# )
-# builder = tvm.autotvm.LocalBuilder(
-#     n_parallel=1, build_kwargs={"build_option": {"tir.disable_vectorize": True}}, do_fork=False
-# )  # do_fork=False needed to persist stateful builder.
-# runner = tvm.autotvm.LocalRunner(number=1, repeat=1, timeout=0, module_loader=module_loader)
-# measure_option = tvm.autotvm.measure_option(builder=builder, runner=runner)
+template_project_dir = pathlib.Path(tvm.micro.get_standalone_crt_dir()) / "template" / "host"
+module_loader = tvm.micro.autotvm_module_loader(
+    str(template_project_dir),
+    {"verbose": 1},
+)
+builder = tvm.autotvm.LocalBuilder(
+    n_parallel=1, build_kwargs={"build_option": {"tir.disable_vectorize": True}}, do_fork=False
+)  # do_fork=False needed to persist stateful builder.
+runner = tvm.autotvm.LocalRunner(number=1, repeat=1, timeout=0, module_loader=module_loader)
+measure_option = tvm.autotvm.measure_option(builder=builder, runner=runner)
 
 # %%
 # Autotuning on physical hardware
@@ -144,27 +144,27 @@ assert len(tasks) > 0
 #  .. code-block:: python
 #
 
-workspace = tvm.micro.Workspace(debug=True)
-template_project_dir = (
-    pathlib.Path(__file__).parent
-    / ".."
-    / ".."
-    / "apps"
-    / "microtvm"
-    / "zephyr"
-    / "template_project"
-).resolve()
-module_loader = tvm.micro.autotvm_module_loader(
-    str(template_project_dir),
-    {"zephyr_board": BOARD, "west_cmd": "west", "verbose": 1},
-)
-builder = tvm.autotvm.LocalBuilder(
-    n_parallel=1,
-    build_kwargs={"build_option": {"tir.disable_vectorize": True}},
-    do_fork=False,
-)  # do_fork=False needed to persist stateful builder.
-runner = tvm.autotvm.LocalRunner(number=1, repeat=1, timeout=0, module_loader=module_loader)
-measure_option = tvm.autotvm.measure_option(builder=builder, runner=runner)
+# workspace = tvm.micro.Workspace(debug=True)
+# template_project_dir = (
+#     pathlib.Path(__file__).parent
+#     / ".."
+#     / ".."
+#     / "apps"
+#     / "microtvm"
+#     / "zephyr"
+#     / "template_project"
+# ).resolve()
+# module_loader = tvm.micro.autotvm_module_loader(
+#     str(template_project_dir),
+#     {"zephyr_board": BOARD, "west_cmd": "west", "verbose": 1},
+# )
+# builder = tvm.autotvm.LocalBuilder(
+#     n_parallel=1,
+#     build_kwargs={"build_option": {"tir.disable_vectorize": True}},
+#     do_fork=False,
+# )  # do_fork=False needed to persist stateful builder.
+# runner = tvm.autotvm.LocalRunner(number=1, repeat=1, timeout=0, module_loader=module_loader)
+# measure_option = tvm.autotvm.measure_option(builder=builder, runner=runner)
 
 
 ################

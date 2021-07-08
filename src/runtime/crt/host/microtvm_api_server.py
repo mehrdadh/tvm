@@ -31,11 +31,8 @@ class Handler(server.ProjectAPIHandler):
         return server.ServerInfo(
             platform_name="host",
             is_template=IS_TEMPLATE,
-            model_library_format_path=""
-            if IS_TEMPLATE
-            else PROJECT_DIR / MODEL_LIBRARY_FORMAT_RELPATH,
-            project_options=[server.ProjectOption("verbose", help="Run make with verbose output")],
-        )
+            model_library_format_path="" if IS_TEMPLATE else PROJECT_DIR / MODEL_LIBRARY_FORMAT_RELPATH,
+            project_options=[server.ProjectOption("verbose", help="Run make with verbose output")])
 
     # These files and directories will be recursively copied into generated projects from the CRT.
     CRT_COPY_ITEMS = ("include", "Makefile", "src")
@@ -79,17 +76,13 @@ class Handler(server.ProjectAPIHandler):
         # Populate crt-config.h
         crt_config_dir = project_dir / "crt_config"
         crt_config_dir.mkdir()
-        shutil.copy2(
-            os.path.join(os.path.dirname(__file__), "..", "crt_config-template.h"),
-            os.path.join(crt_config_dir, "crt_config.h"),
-        )
+        shutil.copy2(os.path.join(os.path.dirname(__file__), "..", "crt_config-template.h"),
+                     os.path.join(crt_config_dir, "crt_config.h"))
 
         # Populate src/
         src_dir = os.path.join(project_dir, "src")
         os.mkdir(src_dir)
-        shutil.copy2(
-            os.path.join(os.path.dirname(__file__), "main.cc"), os.path.join(src_dir, "main.cc")
-        )
+        shutil.copy2(os.path.join(os.path.dirname(__file__), "main.cc"), os.path.join(src_dir, "main.cc"))
 
     def build(self, options):
         args = ["make"]
@@ -109,19 +102,15 @@ class Handler(server.ProjectAPIHandler):
         new_flag = fcntl.fcntl(fd, fcntl.F_GETFL)
         assert (new_flag & os.O_NONBLOCK) != 0, "Cannot set file descriptor {fd} to non-blocking"
 
-    def connect_transport(self, options):
-        self._proc = subprocess.Popen(
-            [self.BUILD_TARGET], stdin=subprocess.PIPE, stdout=subprocess.PIPE, bufsize=0
-        )
+    def open_transport(self, options):
+        self._proc = subprocess.Popen([self.BUILD_TARGET], stdin=subprocess.PIPE, stdout=subprocess.PIPE, bufsize=0)
         self._set_nonblock(self._proc.stdin.fileno())
         self._set_nonblock(self._proc.stdout.fileno())
-        return server.TransportTimeouts(
-            session_start_retry_timeout_sec=0,
-            session_start_timeout_sec=0,
-            session_established_timeout_sec=0,
-        )
+        return server.TransportTimeouts(session_start_retry_timeout_sec=0,
+                                        session_start_timeout_sec=0,
+                                        session_established_timeout_sec=0)
 
-    def disconnect_transport(self):
+    def close_transport(self):
         if self._proc is not None:
             proc = self._proc
             self._proc = None
@@ -155,7 +144,6 @@ class Handler(server.ProjectAPIHandler):
             self.disconnect_transport()
             raise server.TransportClosedError()
 
-        # return {"data": to_return}
         return to_return
 
     def write_transport(self, data, timeout_sec):
@@ -179,9 +167,7 @@ class Handler(server.ProjectAPIHandler):
 
             data = data[num_written:]
 
-        # return {"bytes_written": data_len}
-        return data_len
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     server.main(Handler())

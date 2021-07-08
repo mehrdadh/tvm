@@ -209,7 +209,7 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
   using Stream::WriteArray;
 
   void MessageStart(uint64_t packet_nbytes) {
-    // Unused here, implemented for uTVM framing layer.
+    // Unused here, implemented for microTVM framing layer.
   }
 
   bool Read(RPCCode* code) {
@@ -224,7 +224,7 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
   }
 
   void MessageDone() {
-    // Unused here, implemented for uTVM framing layer.
+    // Unused here, implemented for microTVM framing layer.
   }
 
   template <typename T>

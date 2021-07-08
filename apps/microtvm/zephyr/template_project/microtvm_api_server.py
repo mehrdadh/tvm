@@ -9,14 +9,16 @@ import select
 import shlex
 import shutil
 import subprocess
+import sys
 import tarfile
 import tempfile
 import time
+
+import serial
+import serial.tools.list_ports
+import yaml
+
 from tvm.micro.project_api import server
-from tvm.micro.transport import Transport
-from tvm.micro.transport import file_descriptor
-from tvm.micro.transport import serial
-from tvm.micro.transport import wakeup
 
 
 _LOG = logging.getLogger(__name__)
@@ -35,7 +37,7 @@ IS_TEMPLATE = not (API_SERVER_DIR / MODEL_LIBRARY_FORMAT_RELPATH).exists()
 
 
 def check_call(cmd_args, *args, **kwargs):
-    cwd_str = "" if "cwd" not in kwargs else f" (in cwd: {kwargs['cwd']})"
+    cwd_str = '' if 'cwd' not in kwargs else f" (in cwd: {kwargs['cwd']})"
     _LOG.info("run%s: %s", cwd_str, " ".join(shlex.quote(a) for a in cmd_args))
     return subprocess.check_call(cmd_args, *args, **kwargs)
 
@@ -59,7 +61,7 @@ class CMakeCache(collections.Mapping):
 
     def __getitem__(self, key):
         if self._dict is None:
-            self._read_cmake_cache()
+            self._dict = self._read_cmake_cache()
 
         return self._dict[key]
 
@@ -110,23 +112,20 @@ def _get_device_args(options, cmake_entries):
     flash_runner = _get_flash_runner()
 
     if flash_runner == "nrfjprog":
-        return _get_nrf_device_args()
+        return _get_nrf_device_args(options)
 
     if flash_runner == "openocd":
         return _get_openocd_device_args(options)
 
     raise BoardError(
         f"Don't know how to find serial terminal for board {CMAKE_CACHE['BOARD']} with flash "
-        f"runner {flash_runner}"
-    )
-
+        f"runner {flash_runner}")
 
 # kwargs passed to usb.core.find to find attached boards for the openocd flash runner.
 BOARD_USB_FIND_KW = {
     "nucleo_f746zg": {"idVendor": 0x0483, "idProduct": 0x374B},
     "stm32f746g_disco": {"idVendor": 0x0483, "idProduct": 0x374B},
 }
-
 
 def openocd_serial(options):
     """Find the serial port to use for a board with OpenOCD flash strategy."""
@@ -159,21 +158,24 @@ def _get_nrf_device_args(options):
     nrfjprog_args = ["nrfjprog", "--ids"]
     nrfjprog_ids = subprocess.check_output(nrfjprog_args, encoding="utf-8")
     if not nrfjprog_ids.strip("\n"):
-        raise BoardAutodetectFailed(f'No attached boards recognized by {" ".join(nrfjprog_args)}')
+        raise BoardAutodetectFailed(
+            f'No attached boards recognized by {" ".join(nrfjprog_args)}'
+        )
 
     boards = nrfjprog_ids.split("\n")[:-1]
     if len(boards) > 1:
-        if options["nrfjprog_snr"] is None:
+        if options['nrfjprog_snr'] is None:
             raise BoardError(
-                "Multiple boards connected; specify one with nrfjprog_snr=: " f'{", ".join(boards)}'
+                "Multiple boards connected; specify one with nrfjprog_snr=: "
+                f'{", ".join(boards)}'
             )
 
-        if str(options["nrfjprog_snr"]) not in boards:
+        if str(options['nrfjprog_snr']) not in boards:
             raise BoardError(
                 f"nrfjprog_snr ({options['nrfjprog_snr']}) not found in {nrfjprog_args}: {boards}"
             )
 
-        return ["--snr", options["nrfjprog_snr"]]
+        return ["--snr", options['nrfjprog_snr']]
 
     if not boards:
         return []
@@ -182,28 +184,18 @@ def _get_nrf_device_args(options):
 
 
 PROJECT_OPTIONS = [
-    server.ProjectOption(
-        "gdbserver_port", help=("If given, port number to use when running the " "local gdbserver")
-    ),
-    server.ProjectOption(
-        "openocd_serial",
-        help=("When used with OpenOCD targets, serial # of the " "attached board to use"),
-    ),
-    server.ProjectOption(
-        "nrfjprog_snr",
-        help=(
-            "When used with nRF targets, serial # of the " "attached board to use, from nrfjprog"
-        ),
-    ),
+    server.ProjectOption("gdbserver_port", help=("If given, port number to use when running the "
+                                                 "local gdbserver")),
+    server.ProjectOption("openocd_serial", help=("When used with OpenOCD targets, serial # of the "
+                                                 "attached board to use")),
+    server.ProjectOption("nrfjprog_snr", help=("When used with nRF targets, serial # of the "
+                                               "attached board to use, from nrfjprog")),
     server.ProjectOption("verbose", help="Run build with verbose output"),
-    server.ProjectOption(
-        "west_cmd",
-        help=(
-            "Path to the west tool. If given, supersedes both the zephyr_base "
-            "option and ZEPHYR_BASE environment variable."
-        ),
-    ),
-    server.ProjectOption("zephyr_base", help="Path to the zephyr base directory."),
+    server.ProjectOption("west_cmd",
+                         help=("Path to the west tool. If given, supersedes both the zephyr_base "
+                               "option and ZEPHYR_BASE environment variable.")),
+    server.ProjectOption("zephyr_base",
+                         help="Path to the zephyr base directory."),
     server.ProjectOption("zephyr_board", help="Name of the Zephyr board to build for"),
 ]
 
@@ -217,11 +209,8 @@ class Handler(server.ProjectAPIHandler):
         return server.ServerInfo(
             platform_name="zephyr",
             is_template=IS_TEMPLATE,
-            model_library_format_path=""
-            if IS_TEMPLATE
-            else (API_SERVER_DIR / MODEL_LIBRARY_FORMAT_RELPATH),
-            project_options=PROJECT_OPTIONS,
-        )
+            model_library_format_path="" if IS_TEMPLATE else (API_SERVER_DIR / MODEL_LIBRARY_FORMAT_RELPATH),
+            project_options=PROJECT_OPTIONS)
 
     # These files and directories will be recursively copied into generated projects from the CRT.
     CRT_COPY_ITEMS = ("include", "Makefile", "src")
@@ -239,6 +228,8 @@ class Handler(server.ProjectAPIHandler):
         # whether it's being invoked in a template or generated project.
         project_model_library_format_tar_path = project_dir / MODEL_LIBRARY_FORMAT_RELPATH
         shutil.copy2(model_library_format_path, project_model_library_format_tar_path)
+
+        shutil.copytree(API_SERVER_DIR / "boards", project_dir / "boards")
 
         # Extract Model Library Format tarball.into <project_dir>/model.
         extract_path = os.path.splitext(project_model_library_format_tar_path)[0]
@@ -267,9 +258,7 @@ class Handler(server.ProjectAPIHandler):
         # Populate crt-config.h
         crt_config_dir = project_dir / "crt_config"
         crt_config_dir.mkdir()
-        shutil.copy2(
-            API_SERVER_DIR / "crt_config" / "crt_config.h", crt_config_dir / "crt_config.h"
-        )
+        shutil.copy2(API_SERVER_DIR / "crt_config" / "crt_config.h", crt_config_dir / "crt_config.h")
 
         # Populate src/
         src_dir = project_dir / "src"
@@ -301,7 +290,7 @@ class Handler(server.ProjectAPIHandler):
 
     def flash(self, options):
         if self._is_qemu(options):
-            return  # NOTE: qemu requires no flash step--it is launched from connect_transport.
+            return  # NOTE: qemu requires no flash step--it is launched from open_transport.
 
         zephyr_board = options["zephyr_board"]
 
@@ -312,12 +301,12 @@ class Handler(server.ProjectAPIHandler):
         #  ERROR: your device. Please use --recover to unlock the device.
         if zephyr_board.startswith("nrf5340dk") and _get_flash_runner() == "nrfjprog":
             recover_args = ["nrfjprog", "--recover"]
-            recover_args.extend(_get_nrf_device_args())
+            recover_args.extend(_get_nrf_device_args(options))
             self._subprocess_env.run(recover_args, cwd=build_dir)
 
         check_call(["make", "flash"], cwd=API_SERVER_DIR / "build")
 
-    def _connect_qemu_transport(self, options):
+    def _open_qemu_transport(self, options):
         zephyr_board = options["zephyr_board"]
         # For Zephyr boards that run emulated by default but don't have the prefix "qemu_" in their
         # board names, a suffix "-qemu" is added by users of µTVM when specifying the board name to
@@ -326,25 +315,19 @@ class Handler(server.ProjectAPIHandler):
         if "-qemu" in zephyr_board:
             zephyr_board = zephyr_board.replace("-qemu", "")
 
-        self._transport = ZephyrQemuTransport(options)
-        return self._transport.open()
+        return ZephyrQemuTransport(options)
 
-    def connect_transport(self, options):
+    def open_transport(self, options):
         if self._is_qemu(options):
-            return self._connect_qemu_transport(options)
+            transport =self._open_qemu_transport(options)
+        else:
+            transport = ZephyrSerialTransport(options)
 
-        self._proc = subprocess.Popen(
-            [self.BUILD_TARGET], stdin=subprocess.PIPE, stdout=subprocess.PIPE, bufsize=0
-        )
-        _set_nonblock(self._proc.stdin.fileno())
-        _set_nonblock(self._proc.stdout.fileno())
-        return server.TransportTimeouts(
-            session_start_retry_timeout_sec=0,
-            session_start_timeout_sec=0,
-            session_established_timeout_sec=0,
-        )
+        to_return = transport.open()
+        self._transport = transport
+        return to_return
 
-    def disconnect_transport(self):
+    def close_transport(self):
         if self._transport is not None:
             self._transport.close()
             self._transport = None
@@ -352,12 +335,6 @@ class Handler(server.ProjectAPIHandler):
     def read_transport(self, n, timeout_sec):
         if self._transport is None:
             raise server.TransportClosedError()
-
-        # if not hasattr(self, '_first_read'):
-        #     read_buf = bytearray()
-        #     while b"\xfe\xff\xfd\x03\0\0\0\0\0\x02" b"fw" not in read_buf:
-        #         read_buf.extend(self._transport.read(10, 1.0))
-        #         print('got', read_buf)
 
         return self._transport.read(n, timeout_sec)
 
@@ -407,11 +384,17 @@ class ZephyrSerialTransport:
             parts = line.split()
             ports_by_vcom[parts[2]] = parts[1]
 
-        return {"port_path": ports_by_vcom["VCOM2"]}
+        return ports_by_vcom["VCOM2"]
 
     @classmethod
     def _find_openocd_serial_port(cls, options):
-        return {"grep": openocd_serial(options)}
+        serial_number = openocd_serial(options)
+        ports = [p for p in serial.tools.list_ports.grep(serial_number)]
+        if len(ports) != 1:
+            raise Exception(f"_find_openocd_serial_port: expected 1 port to match {serial_number}, "
+                            f"found: {ports!r}")
+
+        return ports[0].device
 
     @classmethod
     def _find_serial_port(cls, options):
@@ -428,44 +411,33 @@ class ZephyrSerialTransport:
         )
 
     def __init__(self, options):
-        port_kw = self._find_serial_port()
-        port_kw["baudrate"] = self._lookup_baud_rate(options)
-        self._port = serial.Serial(**port_kw)
+        self._options = options
+        self._port = None
+
+    def open(self):
+        port_path = self._find_serial_port(self._options)
+        self._port = serial.Serial(port_path, baudrate=self._lookup_baud_rate(self._options))
+        return server.TransportTimeouts(
+            session_start_retry_timeout_sec=2.0,
+            session_start_timeout_sec=5.0,
+            session_established_timeout_sec=5.0,
+        )
+
+    def close(self):
+        self._port.close()
+        self._port = None
 
     def read(self, n, timeout_sec):
-        if self._proc is None:
-            raise server.TransportClosedError()
-
-        fd = self._proc.stdout.fileno()
-        end_time = None if timeout_sec is None else time.monotonic() + timeout_sec
-
-        self._await_ready([fd], [], end_time=end_time)
-        to_return = os.read(fd, n)
-
-        if not to_return:
-            self.disconnect_transport()
-            raise server.TransportClosedError()
-
-        return {"data": to_return}
+        self._port.timeout = timeout_sec
+        return self._port.read(n)
 
     def write(self, data, timeout_sec):
-        if self._proc is None:
-            raise server.TransportClosedError()
-
-        fd = self._proc.stdin.fileno()
-        end_time = None if timeout_sec is None else time.monotonic() + timeout_sec
-
-        data_len = len(data)
-        while data:
-            self._await_ready([], [fd], end_time=end_time)
-            num_written = os.write(fd, data)
-            if not num_written:
-                self.disconnect_transport()
-                raise server.TransportClosedError()
-
-            data = data[num_written:]
-
-        return {"bytes_written": data_len}
+        self._port.write_timeout = timeout_sec
+        bytes_written = 0
+        while bytes_written < len(data):
+            n = self._port.write(data)
+            data = data[n:]
+            bytes_written += n
 
 
 class ZephyrQemuTransport:
@@ -554,5 +526,5 @@ class ZephyrQemuTransport:
         return num_written
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     server.main(Handler())

@@ -34,8 +34,9 @@
 // framer in its implementation.
 #ifdef TVM_CRT_FRAMER_ENABLE_LOGS
 #include <cstdio>
-#define TVM_FRAMER_DEBUG_LOG(msg, ...) fprintf(stderr, "utvm framer: " msg " \n", ##__VA_ARGS__)
-#define TVM_UNFRAMER_DEBUG_LOG(msg, ...) fprintf(stderr, "utvm unframer: " msg " \n", ##__VA_ARGS__)
+#define TVM_FRAMER_DEBUG_LOG(msg, ...) fprintf(stderr, "microTVM framer: " msg " \n", ##__VA_ARGS__)
+#define TVM_UNFRAMER_DEBUG_LOG(msg, ...) \
+  fprintf(stderr, "microTVM unframer: " msg " \n", ##__VA_ARGS__)
 #else
 #define TVM_FRAMER_DEBUG_LOG(msg, ...)
 #define TVM_UNFRAMER_DEBUG_LOG(msg, ...)
@@ -63,6 +64,26 @@ void Unframer::Reset() {
   state_ = State::kFindPacketStart;
   saw_escape_start_ = false;
   num_buffer_bytes_valid_ = 0;
+}
+
+size_t Unframer::BytesNeeded() {
+  size_t bytes_needed = 0;
+  switch (state_) {
+  case State::kFindPacketStart:
+    return 1;
+  case State::kFindPacketLength:
+    bytes_needed = PacketFieldSizeBytes::kPayloadLength;
+    break;
+  case State::kFindPacketCrc:
+    return num_payload_bytes_remaining_;
+  case State::kFindCrcEnd:
+    bytes_needed = PacketFieldSizeBytes::kCrc;
+    break;
+  default:
+    CHECK(false);
+  }
+
+  return bytes_needed > num_buffer_bytes_valid_ ? bytes_needed - num_buffer_bytes_valid_ : 0;
 }
 
 tvm_crt_error_t Unframer::Write(const uint8_t* data, size_t data_size_bytes,
