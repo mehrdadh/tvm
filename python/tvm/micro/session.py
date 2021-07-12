@@ -17,10 +17,8 @@
 
 """Defines a top-level glue class that operates the Transport and Flasher classes."""
 
-import io
 import json
 import logging
-import os
 import tempfile
 import sys
 
@@ -31,9 +29,6 @@ from ..contrib.debugger import debug_executor
 from ..rpc import RPCSession
 from .transport import IoTimeoutError
 from .transport import TransportLogger
-from . import build
-from . import compiler
-from . import micro_binary
 from .project import generate_project
 from . import Workspace
 
@@ -290,14 +285,15 @@ def create_micro_session(
         temp_f.write(build_result_bin)
         temp_f.flush()
 
-        binary = micro_binary.MicroBinary.unarchive(
-            temp_f.name, os.path.join(tempfile.mkdtemp(), "binary")
-        )
-        flasher_obj = compiler.FlasherFactory.from_json(flasher_factory_json).instantiate()
+        # TODO(mehrdadh): change this interface
+        # binary = micro_binary.MicroBinary.unarchive(
+        #     temp_f.name, os.path.join(tempfile.mkdtemp(), "binary")
+        # )
+        # flasher_obj = compiler.FlasherFactory.from_json(flasher_factory_json).instantiate()
 
-        RPC_SESSION = Session(binary=binary, flasher=flasher_obj)
-        RPC_SESSION.__enter__()
-        return RPC_SESSION._rpc._sess
+        # RPC_SESSION = Session(binary=binary, flasher=flasher_obj)
+        # RPC_SESSION.__enter__()
+        # return RPC_SESSION._rpc._sess
 
 
 @register_func("tvm.micro.compile_and_create_micro_session")
