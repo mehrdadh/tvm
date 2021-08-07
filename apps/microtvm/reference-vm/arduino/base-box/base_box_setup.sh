@@ -27,34 +27,20 @@ if [ -e "$HOME/skip_zeroing_disk" ]; then
 fi
 
 sudo apt update
-sudo apt install -y build-essential wget ca-certificates
+sudo apt install -y build-essential wget ca-certificates cmake cmake-data ninja-build
 sudo apt-get --purge remove modemmanager  # required to access serial ports.
 
 # Python setup (TVM support for Python 3.9+ is iffy)
 sudo apt install python3.8
 alias python=python3.8
 
-# Install Arduino-CLI (latest version)
-wget -O - https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh -s
-
-# 3rd party board URLs
-ADAFRUIT_BOARDS_URL="https://adafruit.github.io/arduino-board-index/package_adafruit_index.json"
-ESP32_BOARDS_URL="https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_dev_index.json"
-SPARKFUN_BOARDS_URL="https://raw.githubusercontent.com/sparkfun/Arduino_Boards/master/IDE_Board_Manager/package_sparkfun_index.json"
-SEEED_BOARDS_URL="https://files.seeedstudio.com/arduino/package_seeeduino_boards_index.json"
-SPRESENSE_BOARDS_URL="https://github.com/sonydevworld/spresense-arduino-compatible/releases/download/generic/package_spresense_index.json"
-arduino-cli core update-index --additional-urls $ADAFRUIT_BOARDS_URL,$ESP32_BOARDS_URL,$SPARKFUN_BOARDS_URL,$SEEED_BOARDS_URL,$SPRESENSE_BOARDS_URL
-
-# Install supported cores from those URLS
-arduino-cli core install arduino:mbed_nano # Arduino Nano BLE
-arduino-cli core install arduino:sam # Arduino Due
-arduino-cli core install SPRESENSE:spresense --additional-urls $SPRESENSE_BOARDS_URL # Sony Spresense
-arduino-cli core install adafruit:samd --additional-urls $ADAFRUIT_BOARDS_URL # Adafruit PyBadge
-arduino-cli core install esp32:esp32 --additiona-urls $ESP32_BOARDS_URL # Adafruit FeatherS2
-
 OLD_HOSTNAME=$(hostname)
 sudo hostnamectl set-hostname microtvm
 sudo sed -i.bak "s/${OLD_HOSTNAME}/microtvm.localdomain/g" /etc/hosts
+
+echo 'export PATH=$HOME/vagrant/bin:"$PATH"' >> ~/.profile
+source ~/.profile
+echo PATH=$PATH
 
 # TVM deps
 sudo apt install -y llvm
