@@ -70,7 +70,7 @@ def project(platform, arduino_cli_cmd, tvm_debug, workspace_dir):
     model, arduino_board = conftest.PLATFORMS[platform]
     build_config = {"debug": tvm_debug}
 
-    with open(this_dir.parent / "testdata" / "yes_no.tflite", "rb") as f:
+    with open(this_dir.parent / "testdata" / "kws" / "yes_no.tflite", "rb") as f:
         tflite_model_buf = f.read()
 
     # TFLite.Model.Model has changed to TFLite.Model from 1.14 to 2.1
@@ -141,7 +141,7 @@ def test_import_rerouting(project_dir, project):
 @pytest.fixture(scope="module")
 def modified_project(project_dir, project):
     this_dir = pathlib.Path(__file__).parent
-    micro_testdata_dir = this_dir.parent / "testdata"
+    kws_testdata_dir = this_dir.parent / "testdata" / "kws"
     arduino_testdata_dir = this_dir / "testdata"
 
     shutil.copy2(arduino_testdata_dir / "project.ino", project_dir / "project.ino")
@@ -149,7 +149,7 @@ def modified_project(project_dir, project):
     project_data_dir = project_dir / "src" / "data"
     project_data_dir.mkdir()
     for sample in ["yes.c", "no.c", "silence.c", "unknown.c"]:
-        shutil.copy2(micro_testdata_dir / sample, project_data_dir / sample)
+        shutil.copy2(kws_testdata_dir / sample, project_data_dir / sample)
 
     return project
 

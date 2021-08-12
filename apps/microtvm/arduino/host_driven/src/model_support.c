@@ -22,7 +22,7 @@
 
 // Blink code for debugging purposes
 void TVMPlatformAbort(tvm_crt_error_t error) {
-  TVMLogf("TVMPlatformAbort: %08x\n", error);
+  TVMLogf("TVMPlatformAbort: 0x%08x\n", error);
   for (;;)
     ;
 }
