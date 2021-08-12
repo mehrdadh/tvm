@@ -21,7 +21,6 @@ import shutil
 import sys
 
 import pytest
-import tflite
 import tvm
 from tvm import micro, relay
 
@@ -73,7 +72,17 @@ def project(platform, arduino_cli_cmd, tvm_debug, workspace_dir):
 
     with open(this_dir.parent / "testdata" / "yes_no.tflite", "rb") as f:
         tflite_model_buf = f.read()
-    tflite_model = tflite.Model.GetRootAsModel(tflite_model_buf, 0)
+
+    # TFLite.Model.Model has changed to TFLite.Model from 1.14 to 2.1
+    try:
+        import tflite.Model
+
+        tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model_buf, 0)
+    except AttributeError:
+        import tflite
+
+        tflite_model = tflite.Model.GetRootAsModel(tflite_model_buf, 0)
+
     mod, params = relay.frontend.from_tflite(tflite_model)
     target = tvm.target.target.micro(
         model, options=["--link-params=1", "--unpacked-api=1", "--executor=aot"]
