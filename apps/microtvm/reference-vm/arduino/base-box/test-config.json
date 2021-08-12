@@ -1,0 +1,22 @@
+{
+    "spresense": {
+        "vid_hex": "10c4",
+        "pid_hex": "ea60"
+        },
+    "nano33ble": {
+        "vid_hex": "2341",
+        "pid_hex": "005a"
+        },
+    "teensy40": {
+        "vid_hex": "16c0",
+        "pid_hex": "0478"
+        },
+    "teensy41": {
+        "vid_hex": "16c0",
+        "pid_hex": "0478"
+        },
+    "feathers2": {
+        "vid_hex": "303a",
+        "pid_hex": "0002"
+    }
+}
