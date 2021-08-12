@@ -44,10 +44,12 @@ arduino-cli core update-index --additional-urls $ADAFRUIT_BOARDS_URL,$ESP32_BOAR
 
 # Install supported cores from those URLS
 arduino-cli core install arduino:mbed_nano # Arduino Nano BLE
-arduino-cli core install arduino:sam # Arduino Due
-arduino-cli core install SPRESENSE:spresense --additional-urls $SPRESENSE_BOARDS_URL # Sony Spresense
-arduino-cli core install adafruit:samd --additional-urls $ADAFRUIT_BOARDS_URL # Adafruit PyBadge
-arduino-cli core install esp32:esp32 --additional-urls $ESP32_BOARDS_URL # Adafruit FeatherS2
+#arduino-cli core install arduino:sam # Arduino Due
+#arduino-cli core install SPRESENSE:spresense --additional-urls $SPRESENSE_BOARDS_URL # Sony Spresense
+#arduino-cli core install adafruit:samd --additional-urls $ADAFRUIT_BOARDS_URL # Adafruit PyBadge
+#arduino-cli core install esp32:esp32 --additional-urls $ESP32_BOARDS_URL # Adafruit FeatherS2
+
+sudo ~/ubuntu_install_qemu.sh --target-list arm-softmmu
 
 # Cleanup
 rm -f *.sh

@@ -16,7 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 #
-# Usage: base_box_test.sh <PLATFORMS>
+# Usage: base_box_test.sh <MICROTVM_PLATFORM>
 #     Execute microTVM Arduino tests.
 #
 
@@ -24,14 +24,10 @@ set -e
 set -x
 
 if [ "$#" -lt 1 ]; then
-    echo "Usage: base_box_test.sh <PLATFORMS>"
+    echo "Usage: base_box_test.sh <MICROTVM_PLATFORM>"
     exit -1
 fi
 
-platforms=$1
+microtvm_platform=$1
 
-pytest tests/micro/arduino/test_arduino_workflow.py --platforms=${platforms} --run-hardware-tests
-
-if [ $microtvm_platform == "spresense" ]; then
-    pytest tests/micro/arduino/test_arduino_rpc_server.py --platforms=${platforms}
-fi
+pytest tests/micro/arduino/test_arduino_workflow.py --microtvm-platforms=${microtvm_platform}

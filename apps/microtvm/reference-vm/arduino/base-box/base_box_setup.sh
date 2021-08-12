@@ -27,12 +27,14 @@ if [ -e "$HOME/skip_zeroing_disk" ]; then
 fi
 
 sudo apt update
-sudo apt install -y build-essential wget ca-certificates cmake cmake-data ninja-build
+sudo apt install -y build-essential
 sudo apt-get --purge remove modemmanager  # required to access serial ports.
 
-# Python setup (TVM support for Python 3.9+ is iffy)
-sudo apt install python3.8
-alias python=python3.8
+sudo apt install -y --no-install-recommends git \
+     cmake cmake-data \
+     ninja-build gperf ccache dfu-util device-tree-compiler wget \
+     python3-dev python3-pip python3-setuptools python3-tk python3-wheel xz-utils file \
+     make gcc gcc-multilib g++-multilib libsdl2-dev
 
 OLD_HOSTNAME=$(hostname)
 sudo hostnamectl set-hostname microtvm
@@ -47,6 +49,11 @@ sudo apt install -y llvm
 
 # ONNX deps
 sudo apt install -y protobuf-compiler libprotoc-dev
+
+# Poetry
+curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python3
+sed -i "/^# If not running interactively,/ i source \$HOME/.poetry/env" ~/.bashrc
+sed -i "/^# If not running interactively,/ i\\ " ~/.bashrc
 
 # Clean box for packaging as a base box
 sudo apt-get clean

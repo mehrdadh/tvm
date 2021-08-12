@@ -181,6 +181,7 @@ ATTACH_USB_DEVICE = {
 EXTRA_SCRIPTS = {
     "arduino": (
         #"docker/install/ubuntu_install_arduino.sh",
+        "docker/install/ubuntu_install_qemu.sh",
     ),
     "zephyr": (
         "docker/install/ubuntu_init_zephyr_project.sh",
