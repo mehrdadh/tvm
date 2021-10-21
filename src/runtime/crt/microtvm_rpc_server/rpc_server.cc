@@ -42,6 +42,7 @@
 #include <tvm/runtime/crt/rpc_common/frame_buffer.h>
 #include <tvm/runtime/crt/rpc_common/framing.h>
 #include <tvm/runtime/crt/rpc_common/session.h>
+#include <tvm/runtime/crt/rpc_common/transport.h>
 
 #include "../../minrpc/minrpc_server.h"
 #include "crt_config.h"
@@ -50,130 +51,15 @@ namespace tvm {
 namespace runtime {
 namespace micro_rpc {
 
-class MicroIOHandler {
- public:
-  MicroIOHandler(Session* session, FrameBuffer* receive_buffer)
-      : session_{session}, receive_buffer_{receive_buffer} {}
-
-  void MessageStart(size_t message_size_bytes) {
-    session_->StartMessage(MessageType::kNormal, message_size_bytes + 8);
-  }
-
-  ssize_t PosixWrite(const uint8_t* buf, size_t buf_size_bytes) {
-    int to_return = session_->SendBodyChunk(buf, buf_size_bytes);
-    if (to_return < 0) {
-      return to_return;
-    }
-    return buf_size_bytes;
-  }
-
-  void MessageDone() { CHECK_EQ(session_->FinishMessage(), kTvmErrorNoError, "FinishMessage"); }
-
-  ssize_t PosixRead(uint8_t* buf, size_t buf_size_bytes) {
-    return receive_buffer_->Read(buf, buf_size_bytes);
-  }
-
-  void Close() {}
-
-  void Exit(int code) {
-    for (;;) {
-    }
-  }
-
- private:
-  Session* session_;
-  FrameBuffer* receive_buffer_;
-};
-
-namespace {
-// Stored as globals so that they can be used to report initialization errors.
-microtvm_rpc_channel_write_t g_write_func = nullptr;
-void* g_write_func_ctx = nullptr;
-}  // namespace
-
-class SerialWriteStream : public WriteStream {
- public:
-  SerialWriteStream() {}
-  virtual ~SerialWriteStream() {}
-
-  ssize_t Write(const uint8_t* data, size_t data_size_bytes) override {
-    return g_write_func(g_write_func_ctx, data, data_size_bytes);
-  }
-
-  void PacketDone(bool is_valid) override {}
-
- private:
-  void operator delete(void*) noexcept {}  // NOLINT(readability/casting)
-};
-
-class MicroRPCServer {
+class MicroRPCServer : public MicroTransport {
  public:
   MicroRPCServer(uint8_t* receive_storage, size_t receive_storage_size_bytes,
                  microtvm_rpc_channel_write_t write_func, void* write_func_ctx)
-      : receive_buffer_{receive_storage, receive_storage_size_bytes},
-        framer_{&send_stream_},
-        session_{&framer_, &receive_buffer_, &HandleCompleteMessageCb, this},
-        io_{&session_, &receive_buffer_},
-        unframer_{session_.Receiver()},
-        rpc_server_{&io_},
-        is_running_{true} {}
-
-  void* operator new(size_t count, void* ptr) { return ptr; }
-
-  void Initialize() {
-    uint8_t initial_session_nonce = Session::kInvalidNonce;
-    tvm_crt_error_t error =
-        TVMPlatformGenerateRandom(&initial_session_nonce, sizeof(initial_session_nonce));
-    CHECK_EQ(kTvmErrorNoError, error, "generating random session id");
-    CHECK_EQ(kTvmErrorNoError, session_.Initialize(initial_session_nonce), "rpc server init");
-  }
-
-  /*! \brief Process one message from the receive buffer, if possible.
-   *
-   * \param new_data If not nullptr, a pointer to a buffer pointer, which should point at new input
-   *     data to process. On return, updated to point past data that has been consumed.
-   * \param new_data_size_bytes Points to the number of valid bytes in `new_data`. On return,
-   *     updated to the number of unprocessed bytes remaining in `new_data` (usually 0).
-   * \return an error code indicating the outcome of the processing loop.
-   */
-  tvm_crt_error_t Loop(uint8_t** new_data, size_t* new_data_size_bytes) {
-    if (!is_running_) {
-      return kTvmErrorPlatformShutdown;
-    }
-
-    tvm_crt_error_t err = kTvmErrorNoError;
-    if (new_data != nullptr && new_data_size_bytes != nullptr && *new_data_size_bytes > 0) {
-      size_t bytes_consumed;
-      err = unframer_.Write(*new_data, *new_data_size_bytes, &bytes_consumed);
-      *new_data += bytes_consumed;
-      *new_data_size_bytes -= bytes_consumed;
-    }
-
-    if (err == kTvmErrorNoError && !is_running_) {
-      err = kTvmErrorPlatformShutdown;
-    }
-
-    return err;
-  }
-
-  void Log(const uint8_t* message, size_t message_size_bytes) {
-    tvm_crt_error_t to_return =
-        session_.SendMessage(MessageType::kLog, message, message_size_bytes);
-    if (to_return != 0) {
-      TVMPlatformAbort(to_return);
-    }
-  }
+      : MicroTransport(receive_storage, receive_storage_size_bytes, write_func, write_func_ctx),
+        rpc_server_{&io_} {}
 
  private:
-  FrameBuffer receive_buffer_;
-  SerialWriteStream send_stream_;
-  Framer framer_;
-  Session session_;
-  MicroIOHandler io_;
-  Unframer unframer_;
   MinRPCServer<MicroIOHandler> rpc_server_;
-
-  bool is_running_;
 
   void HandleCompleteMessage(MessageType message_type, FrameBuffer* buf) {
     if (message_type != MessageType::kNormal) {
@@ -182,10 +68,6 @@ class MicroRPCServer {
 
     is_running_ = rpc_server_.ProcessOnePacket();
     session_.ClearReceiveBuffer();
-  }
-
-  static void HandleCompleteMessageCb(void* context, MessageType message_type, FrameBuffer* buf) {
-    static_cast<MicroRPCServer*>(context)->HandleCompleteMessage(message_type, buf);
   }
 };
 

@@ -215,8 +215,8 @@ void command_ready(char* command) {
 }
 
 void serial_callback(char* message, int len_bytes) {
-  for (int i=0; i<len_bytes; i++) {
-    if(message[i] == CMD_TERMINATOR) {
+  for (int i = 0; i < len_bytes; i++) {
+    if (message[i] == CMD_TERMINATOR) {
       g_cmd_buf[g_cmd_buf_ind] = (char)0;
       command_ready(g_cmd_buf);
       g_cmd_buf_ind = 0;

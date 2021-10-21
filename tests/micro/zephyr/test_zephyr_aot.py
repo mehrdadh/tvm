@@ -122,7 +122,6 @@ def test_tflite(temp_dir, board, west_cmd, tvm_debug):
                 break
             except:
                 transport.write(b"init%", timeout_sec=5)
-            
 
         # transport.write(b"init%", timeout_sec=5)
         transport.write(b"infer%", timeout_sec=5)
