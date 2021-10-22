@@ -299,6 +299,8 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
       GenerateEntrypointForPackedAPI(entrypoint_mangled, run_func_mangled);
     }
 
+    // GenerateCrtSystemLib();
+
     code_ << "#ifdef __cplusplus\n";
     code_ << "}\n";
     code_ << "#endif\n";

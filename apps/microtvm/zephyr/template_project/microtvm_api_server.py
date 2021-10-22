@@ -314,8 +314,8 @@ class Handler(server.ProjectAPIHandler):
             )
             f.write("# For TVMPlatformAbort().\n" "CONFIG_REBOOT=y\n" "\n")
 
-            if options["project_type"] == "host_driven":
-                f.write("# For RPC server C++ bindings.\n" "CONFIG_CPLUSPLUS=y\n" "\n")
+            # if options["project_type"] == "host_driven":
+            f.write("# For RPC server C++ bindings.\n" "CONFIG_CPLUSPLUS=y\n" "\n")
 
             f.write("# For math routines\n" "CONFIG_NEWLIB_LIBC=y\n" "\n")
 
@@ -339,7 +339,7 @@ class Handler(server.ProjectAPIHandler):
 
     CRT_LIBS_BY_PROJECT_TYPE = {
         "host_driven": "microtvm_rpc_server microtvm_rpc_common common",
-        "aot_demo": "memory microtvm_rpc_common common",
+        "aot_demo": "memory microtvm_aot_server microtvm_rpc_common common",
     }
 
     def generate_project(self, model_library_format_path, standalone_crt_dir, project_dir, options):

@@ -44,7 +44,7 @@ typedef ssize_t (*microtvm_rpc_channel_write_t)(void* context, const uint8_t* da
                                                 size_t num_bytes);
 
 /*! \brief Opaque pointer type to TVM RPC Server. */
-typedef void* microtvm_rpc_server_t;
+typedef void* microtvm_aot_server_t;
 
 /*! \brief Initialize the TVM RPC Server.
  *
@@ -57,7 +57,7 @@ typedef void* microtvm_rpc_server_t;
  * \return A pointer to the TVM RPC Server. The pointer is allocated in the same memory space as
  *         the TVM workspace.
  */
-microtvm_rpc_server_t MicroTVMRpcServerInit(microtvm_rpc_channel_write_t write_func,
+microtvm_aot_server_t MicroTVMAOTServerInit(microtvm_rpc_channel_write_t write_func,
                                             void* write_func_ctx);
 
 /*! \brief Do any tasks suitable for the main thread, and maybe process new incoming data.
@@ -69,8 +69,10 @@ microtvm_rpc_server_t MicroTVMRpcServerInit(microtvm_rpc_channel_write_t write_f
  *     updated to the number of unprocessed bytes remaining in `new_data` (usually 0).
  * \return An error code indicating the outcome of the server main loop iteration.
  */
-tvm_crt_error_t MicroTVMRpcServerLoop(microtvm_rpc_server_t server, uint8_t** new_data,
+
+tvm_crt_error_t MicroTVMAOTServerLoop(microtvm_aot_server_t server_ptr, uint8_t** new_data,
                                       size_t* new_data_size_bytes);
+
 
 
 #ifdef __cplusplus

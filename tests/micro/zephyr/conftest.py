@@ -76,4 +76,11 @@ def temp_dir(board):
     if not os.path.exists(board_workspace.parent):
         os.makedirs(board_workspace.parent)
 
-    return tempdir(board_workspace)
+    if not os.path.exists(board_workspace):
+        os.makedirs(board_workspace)
+
+    # temp_dir = tempdir(board_workspace)
+    # temp_dir.set_keep_for_debug(True)
+    # import pdb; pdb.set_trace()
+    # os.makedirs(board_workspace)
+    return board_workspace

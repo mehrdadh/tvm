@@ -32,8 +32,8 @@
 // toolchains. Just pull the bits we need for this file.
 #define DMLC_CMAKE_LITTLE_ENDIAN DMLC_IO_USE_LITTLE_ENDIAN
 #define DMLC_LITTLE_ENDIAN true
-#include <tvm/runtime/c_runtime_api.h>
-#include <tvm/runtime/crt/crt.h>
+// #include <tvm/runtime/c_runtime_api.h>
+// #include <tvm/runtime/crt/crt.h>
 #include <tvm/runtime/crt/logging.h>
 #include <tvm/runtime/crt/microtvm_rpc_server.h>
 #include <tvm/runtime/crt/module.h>
@@ -42,6 +42,7 @@
 #include <tvm/runtime/crt/rpc_common/frame_buffer.h>
 #include <tvm/runtime/crt/rpc_common/framing.h>
 #include <tvm/runtime/crt/rpc_common/session.h>
+// #include <tvm/runtime/crt/rpc_common/write_stream.h>
 
 #include "crt_config.h"
 
@@ -107,6 +108,7 @@ class SerialWriteStream : public WriteStream {
 
 class MicroTransport {
  public:
+//  mehrdad: change microtvm_rpc_channel_write_t type to be generic
   MicroTransport(uint8_t* receive_storage, size_t receive_storage_size_bytes,
                  microtvm_rpc_channel_write_t write_func, void* write_func_ctx)
       : receive_buffer_{receive_storage, receive_storage_size_bytes},
@@ -166,21 +168,23 @@ class MicroTransport {
   FrameBuffer receive_buffer_;
   SerialWriteStream send_stream_;
   Framer framer_;
+  Session session_;
+  MicroIOHandler io_;
   Unframer unframer_;
+  bool is_running_;
 
  protected:
-  MicroIOHandler io_;
-  bool is_running_;
-  Session session_;
+  Session* GetSession() {
+    return &session_;
+  }
 
-  // void HandleCompleteMessage(MessageType message_type, FrameBuffer* buf) {
-  //   if (message_type != MessageType::kNormal) {
-  //     return;
-  //   }
+  MicroIOHandler* GetIOHandler() {
+    return &io_;
+  }
 
-  //   is_running_ = rpc_server_.ProcessOnePacket();
-  //   session_.ClearReceiveBuffer();
-  // }
+  void SetRunning(bool state) {
+    is_running_ = state;
+  }
 
   virtual void HandleCompleteMessage(MessageType message_type, FrameBuffer* buf) = 0;
 

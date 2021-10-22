@@ -21,10 +21,12 @@
 #include <float.h>
 #include <kernel.h>
 #include <power/reboot.h>
+#include <random/rand32.h>
 #include <stdio.h>
 #include <string.h>
-#include <tvm/runtime/c_runtime_api.h>
+// #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/crt/logging.h>
+#include <tvm/runtime/crt/microtvm_aot_server.h>
 #include <tvm/runtime/crt/stack_allocator.h>
 #include <unistd.h>
 #include <zephyr.h>
@@ -59,15 +61,15 @@ size_t TVMPlatformFormatMessage(char* out_buf, size_t out_buf_size_bytes, const 
   return vsnprintk(out_buf, out_buf_size_bytes, fmt, args);
 }
 
-void TVMLogf(const char* msg, ...) {
-  char buffer[256];
-  int size;
-  va_list args;
-  va_start(args, msg);
-  size = vsprintf(buffer, msg, args);
-  va_end(args);
-  TVMPlatformWriteSerial(buffer, (uint32_t)size);
-}
+// void TVMLogf(const char* msg, ...) {
+//   char buffer[256];
+//   int size;
+//   va_list args;
+//   va_start(args, msg);
+//   size = vsprintf(buffer, msg, args);
+//   va_end(args);
+//   TVMPlatformWriteSerial(buffer, (uint32_t)size);
+// }
 
 void TVMPlatformAbort(tvm_crt_error_t error) {
   TVMLogf("TVMPlatformAbort: %08x\n", error);
@@ -146,6 +148,26 @@ tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds) {
   }
 
   g_microtvm_timer_running = 0;
+  return kTvmErrorNoError;
+}
+
+// Called by TVM to generate random data.
+tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes) {
+  uint32_t random;  // one unit of random data.
+
+  // Fill parts of `buffer` which are as large as `random`.
+  size_t num_full_blocks = num_bytes / sizeof(random);
+  for (int i = 0; i < num_full_blocks; ++i) {
+    random = sys_rand32_get();
+    memcpy(&buffer[i * sizeof(random)], &random, sizeof(random));
+  }
+
+  // Fill any leftover tail which is smaller than `random`.
+  size_t num_tail_bytes = num_bytes % sizeof(random);
+  if (num_tail_bytes > 0) {
+    random = sys_rand32_get();
+    memcpy(&buffer[num_bytes - num_tail_bytes], &random, num_tail_bytes);
+  }
   return kTvmErrorNoError;
 }
 
@@ -231,27 +253,49 @@ void main(void) {
   g_cmd_buf_ind = 0;
   memset((char*)g_cmd_buf, 0, sizeof(g_cmd_buf));
   TVMPlatformUARTInit();
+
+  // Initialize microTVM RPC server, which will receive commands from the UART and execute them.
+  microtvm_aot_server_t server = MicroTVMAOTServerInit(write_serial, NULL);
+  TVMLogf("microTVM Zephyr AOT runtime.");
+
   k_timer_init(&g_microtvm_timer, NULL, NULL);
+  
+  
   // Wake up host side.
   TVMPlatformWriteSerial(CMD_WAKEUP, sizeof(CMD_WAKEUP));
 
-  // Wait for start command
+    // The main application loop. We continuously read commands from the UART
+  // and dispatch them to MicroTVMRpcServerLoop().
   while (true) {
-    int bytes_read = TVMPlatformUartRxRead(main_rx_buf, sizeof(main_rx_buf));
+    uint8_t* data;
+    uint32_t bytes_read = TVMPlatformUartRxRead(main_rx_buf, sizeof(main_rx_buf));
     if (bytes_read > 0) {
-      // memcpy((char*)cmd_buf + g_cmd_buf_ind, main_rx_buf, bytes_read);
-      // g_cmd_buf_ind += bytes_read;
-      serial_callback(main_rx_buf, bytes_read);
+      // g_num_bytes_in_rx_buffer -= bytes_read;
+      size_t bytes_remaining = bytes_read;
+      while (bytes_remaining > 0) {
+        // Pass the received bytes to the RPC server.
+        tvm_crt_error_t err = MicroTVMAOTServerLoop(server, &data, &bytes_remaining);
+        if (err != kTvmErrorNoError && err != kTvmErrorFramingShortPacket) {
+          TVMPlatformAbort(err);
+        }
+        // if (g_num_bytes_written != 0 || g_num_bytes_requested != 0) {
+        //   if (g_num_bytes_written != g_num_bytes_requested) {
+        //     TVMPlatformAbort((tvm_crt_error_t)0xbeef5);
+        //   }
+        //   g_num_bytes_written = 0;
+        //   g_num_bytes_requested = 0;
+        // }
+      }
     }
-    // if (g_cmd_buf_ind >= 6) {
-    //   if (!strcmp((char*)(cmd_buf), g_start_cmd)) {
-    //     break;
-    //   } else {
-    //     memset((char*)cmd_buf, 0, sizeof(cmd_buf));
-    //     g_cmd_buf_ind = 0;
-    //   }
-    // }
   }
+
+  // Wait for start command
+  // while (true) {
+  //   int bytes_read = TVMPlatformUartRxRead(main_rx_buf, sizeof(main_rx_buf));
+  //   if (bytes_read > 0) {
+  //     serial_callback(main_rx_buf, bytes_read);
+  //   }
+  // }
 
 #ifdef CONFIG_ARCH_POSIX
   posix_exit(0);

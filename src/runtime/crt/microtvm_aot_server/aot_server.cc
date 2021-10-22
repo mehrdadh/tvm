@@ -32,41 +32,35 @@
 // toolchains. Just pull the bits we need for this file.
 #define DMLC_CMAKE_LITTLE_ENDIAN DMLC_IO_USE_LITTLE_ENDIAN
 #define DMLC_LITTLE_ENDIAN true
-// #include <tvm/runtime/c_runtime_api.h>
+
 #include <tvm/runtime/crt/crt.h>
 #include <tvm/runtime/crt/logging.h>
-#include <tvm/runtime/crt/microtvm_rpc_server.h>
-// #include <tvm/runtime/crt/module.h>
-// #include <tvm/runtime/crt/page_allocator.h>
-// #include <tvm/runtime/crt/platform.h>
-// #include <tvm/runtime/crt/rpc_common/frame_buffer.h>
-// #include <tvm/runtime/crt/rpc_common/framing.h>
-// #include <tvm/runtime/crt/rpc_common/session.h>
+#include <tvm/runtime/crt/microtvm_aot_server.h>
 #include <tvm/runtime/crt/rpc_common/transport.h>
 
-#include "../../minrpc/minrpc_server.h"
+#include "./aot_server.h"
 #include "crt_config.h"
 
 namespace tvm {
 namespace runtime {
 namespace micro_rpc {
 
-class MicroRPCServer : public MicroTransport {
+class MicroAOTServer : public MicroTransport {
  public:
-  MicroRPCServer(uint8_t* receive_storage, size_t receive_storage_size_bytes,
+  MicroAOTServer(uint8_t* receive_storage, size_t receive_storage_size_bytes,
                  microtvm_rpc_channel_write_t write_func, void* write_func_ctx)
       : MicroTransport(receive_storage, receive_storage_size_bytes, write_func, write_func_ctx),
-        rpc_server_{GetIOHandler()} {}
+        aot_server_{GetIOHandler()} {}
 
  private:
-  MinRPCServer<MicroIOHandler> rpc_server_;
+  AOTServer<MicroIOHandler> aot_server_;
 
   void HandleCompleteMessage(MessageType message_type, FrameBuffer* buf) {
     if (message_type != MessageType::kNormal) {
       return;
     }
 
-    SetRunning(rpc_server_.ProcessOnePacket());
+    SetRunning(aot_server_.ProcessOnePacket());
     Session* session = GetSession();
     session->ClearReceiveBuffer();
   }
@@ -80,36 +74,36 @@ void* operator new[](size_t count, void* ptr) noexcept { return ptr; }
 
 extern "C" {
 
-static microtvm_rpc_server_t g_rpc_server = nullptr;
+static microtvm_aot_server_t g_aot_server = nullptr;
 
-microtvm_rpc_server_t MicroTVMRpcServerInit(microtvm_rpc_channel_write_t write_func,
+microtvm_aot_server_t MicroTVMAOTServerInit(microtvm_rpc_channel_write_t write_func,
                                             void* write_func_ctx) {
   tvm::runtime::micro_rpc::g_write_func = write_func;
   tvm::runtime::micro_rpc::g_write_func_ctx = write_func_ctx;
 
-  tvm_crt_error_t err = TVMInitializeRuntime();
-  if (err != kTvmErrorNoError) {
-    TVMPlatformAbort(err);
-  }
+  // tvm_crt_error_t err = TVMInitializeRuntime();
+  // if (err != kTvmErrorNoError) {
+  //   TVMPlatformAbort(err);
+  // }
 
   DLDevice dev = {kDLCPU, 0};
   void* receive_buffer_memory;
-  err = TVMPlatformMemoryAllocate(TVM_CRT_MAX_PACKET_SIZE_BYTES, dev, &receive_buffer_memory);
+  tvm_crt_error_t err = TVMPlatformMemoryAllocate(TVM_CRT_MAX_PACKET_SIZE_BYTES, dev, &receive_buffer_memory);
   if (err != kTvmErrorNoError) {
     TVMPlatformAbort(err);
   }
   auto receive_buffer = new (receive_buffer_memory) uint8_t[TVM_CRT_MAX_PACKET_SIZE_BYTES];
   void* rpc_server_memory;
-  err = TVMPlatformMemoryAllocate(sizeof(tvm::runtime::micro_rpc::MicroRPCServer), dev,
+  err = TVMPlatformMemoryAllocate(sizeof(tvm::runtime::micro_rpc::MicroAOTServer), dev,
                                   &rpc_server_memory);
   if (err != kTvmErrorNoError) {
     TVMPlatformAbort(err);
   }
-  auto rpc_server = new (rpc_server_memory) tvm::runtime::micro_rpc::MicroRPCServer(
+  auto aot_server = new (rpc_server_memory) tvm::runtime::micro_rpc::MicroAOTServer(
       receive_buffer, TVM_CRT_MAX_PACKET_SIZE_BYTES, write_func, write_func_ctx);
-  g_rpc_server = static_cast<microtvm_rpc_server_t>(rpc_server);
-  rpc_server->Initialize();
-  return g_rpc_server;
+  g_aot_server = static_cast<microtvm_aot_server_t>(aot_server);
+  aot_server->Initialize();
+  return g_aot_server;
 }
 
 void TVMLogf(const char* format, ...) {
@@ -126,8 +120,8 @@ void TVMLogf(const char* format, ...) {
     num_bytes_logged--;
   }
 
-  if (g_rpc_server != nullptr) {
-    static_cast<tvm::runtime::micro_rpc::MicroRPCServer*>(g_rpc_server)
+  if (g_aot_server != nullptr) {
+    static_cast<tvm::runtime::micro_rpc::MicroAOTServer*>(g_aot_server)
         ->Log(reinterpret_cast<uint8_t*>(log_buffer), num_bytes_logged);
   } 
   // else
@@ -142,10 +136,10 @@ void TVMLogf(const char* format, ...) {
   //   }
   }
 
-tvm_crt_error_t MicroTVMRpcServerLoop(microtvm_rpc_server_t server_ptr, uint8_t** new_data,
+tvm_crt_error_t MicroTVMAOTServerLoop(microtvm_aot_server_t server_ptr, uint8_t** new_data,
                                       size_t* new_data_size_bytes) {
-  tvm::runtime::micro_rpc::MicroRPCServer* server =
-      static_cast<tvm::runtime::micro_rpc::MicroRPCServer*>(server_ptr);
+  tvm::runtime::micro_rpc::MicroAOTServer* server =
+      static_cast<tvm::runtime::micro_rpc::MicroAOTServer*>(server_ptr);
   return server->Loop(new_data, new_data_size_bytes);
 }
 

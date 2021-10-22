@@ -21,6 +21,8 @@
 #define TVM_APPS_MICROTVM_ZEPHYR_AOT_DEMO_INCLUDE_ZEPHYR_UART_H_
 
 #include <stdint.h>
+#include <unistd.h>
+#include <stdio.h>
 
 // Used to read data from the UART.
 
@@ -46,5 +48,7 @@ uint32_t TVMPlatformWriteSerial(const char* data, uint32_t size);
  * \brief Initialize Uart.
  */
 void TVMPlatformUARTInit();
+
+ssize_t write_serial(void* unused_context, const uint8_t* data, size_t size);
 
 #endif /* TVM_APPS_MICROTVM_ZEPHYR_AOT_DEMO_INCLUDE_ZEPHYR_UART_H_ */

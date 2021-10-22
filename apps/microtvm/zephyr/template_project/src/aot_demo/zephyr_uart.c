@@ -73,6 +73,14 @@ uint32_t TVMPlatformWriteSerial(const char* data, uint32_t size) {
   return size;
 }
 
+// Called by TVM to write serial data to the UART.
+ssize_t write_serial(void* unused_context, const uint8_t* data, size_t size) {
+  for (size_t i = 0; i < size; i++) {
+    uart_poll_out(g_microtvm_uart, data[i]);
+  }
+  return size;
+}
+
 // Initialize UART
 void TVMPlatformUARTInit() {
   // Claim console device.
