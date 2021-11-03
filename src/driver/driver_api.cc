@@ -187,7 +187,8 @@ transform::Pass Filter(FCond fcond) {
 Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition) {
   transform::PassContext pass_ctx = transform::PassContext::Current();
 
-  bool disable_vectorize = pass_ctx->GetConfig<Bool>("tir.disable_vectorize", Bool(false)).value();
+  // bool disable_vectorize = pass_ctx->GetConfig<Bool>("tir.disable_vectorize", Bool(false)).value();
+  bool disable_vectorize = true;
   bool instrument_bound_checkers =
       pass_ctx->GetConfig<Bool>("tir.instrument_bound_checkers", Bool(false)).value();
 
@@ -253,6 +254,8 @@ Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition) {
     pass_list.push_back(tir::transform::LoopPartition());
   }
 
+// mehrdad
+  LOG_ERROR << "mehrdad: " << "CreatePassList";
   pass_list.push_back(tir::transform::VectorizeLoop(!disable_vectorize));
   pass_list.push_back(tir::transform::InjectVirtualThread());
   pass_list.push_back(tir::transform::InjectDoubleBuffer());
@@ -377,6 +380,7 @@ IRModule LowerSchedule(te::Schedule sch, const Array<te::Tensor>& args, const st
 IRModule LowerSchedule(te::Schedule sch, const Array<ObjectRef>& args, const std::string& name,
                        const std::unordered_map<te::Tensor, tir::Buffer>& binds, bool simple_mode) {
   IRModule mod = ScheduleToModule(std::move(sch), args, name, binds);
+  LOG_ERROR << "mehrdad: " << "LowerSchedule";
   // Get the legacy TE pass list
   Array<transform::Pass> pass_list = CreatePassList(simple_mode);
   return LowerWithPassList(mod, pass_list);

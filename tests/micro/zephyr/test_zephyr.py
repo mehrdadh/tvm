@@ -56,7 +56,7 @@ def _make_session(temp_dir, zephyr_board, west_cmd, mod, build_config):
     project_options = {
         "project_type": "host_driven",
         "west_cmd": west_cmd,
-        "verbose": bool(build_config.get("debug")),
+        "verbose": True,
         "zephyr_board": zephyr_board,
     }
     if config_main_stack_size is not None:
@@ -180,7 +180,10 @@ def test_relay(temp_dir, board, west_cmd, tvm_debug):
     ir_mod = tvm.IRModule.from_expr(func)
 
     target = tvm.target.target.micro(model)
-    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
+    # import pdb; pdb.set_trace()
+    # with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
+    
+    with tvm.transform.PassContext(opt_level=3):
         mod = tvm.relay.build(ir_mod, target=target)
 
     with _make_session(temp_dir, board, west_cmd, mod, build_config) as session:

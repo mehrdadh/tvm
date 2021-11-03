@@ -1276,8 +1276,8 @@ void GetPerStoreFeaturesWorkerFunc(const SearchTask& task, const State& state, i
     auto mod = ScheduleToModule(sch, Array<ObjectRef>{tensors.begin(), tensors.end()}, name,
                                 std::unordered_map<te::Tensor, te::Buffer>());
 
-    bool disable_vectorize =
-        pass_ctx->GetConfig<Bool>("tir.disable_vectorize", Bool(false)).value();
+    // bool disable_vectorize =
+    //     pass_ctx->GetConfig<Bool>("tir.disable_vectorize", Bool(false)).value();
     bool instrument_bound_checkers =
         pass_ctx->GetConfig<Bool>("tir.instrument_bound_checkers", Bool(false)).value();
 
@@ -1289,7 +1289,8 @@ void GetPerStoreFeaturesWorkerFunc(const SearchTask& task, const State& state, i
       // Phase 1
       pass_list.push_back(tir::transform::NarrowDataType(32));
       pass_list.push_back(tir::transform::Simplify());
-      pass_list.push_back(tir::transform::VectorizeLoop(!disable_vectorize));
+      // mehrdad
+      // pass_list.push_back(tir::transform::VectorizeLoop(!disable_vectorize));
       pass_list.push_back(tir::transform::InjectVirtualThread());
       pass_list.push_back(tir::transform::StorageRewrite());
       pass_list.push_back(tir::transform::Simplify());

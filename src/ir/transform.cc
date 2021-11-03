@@ -55,6 +55,7 @@ struct PassContextThreadLocalEntry {
 typedef dmlc::ThreadLocalStore<PassContextThreadLocalEntry> RelayPassContextThreadLocalStore;
 
 void PassContext::EnterWithScope() {
+  LOG_INFO << "mehrdad: " << "EnterWithScope";
   InstrumentEnterPassContext();
 
   PassContextThreadLocalEntry* entry = RelayPassContextThreadLocalStore::Get();
@@ -62,6 +63,7 @@ void PassContext::EnterWithScope() {
 }
 
 void PassContext::ExitWithScope() {
+  LOG_INFO << "mehrdad: " << "ExitWithScope";
   PassContextThreadLocalEntry* entry = RelayPassContextThreadLocalStore::Get();
   ICHECK(!entry->context_stack.empty());
   ICHECK(entry->context_stack.top().same_as(*this));
