@@ -61,7 +61,6 @@ def get_tvm_output_with_vm(
     if not isinstance(input_data, list):
         input_data = [input_data]
     _, shape_dict = get_input_data_shape_dict(graph_def, input_data)
-
     mod, params = relay.frontend.from_onnx(
         graph_def,
         shape_dict,
@@ -167,7 +166,6 @@ def verify_with_ort_with_inputs(
         model.opset_import[0].version = opset
 
     ort_out = get_onnxruntime_output(model, inputs)
-
     if use_vm:
         tvm_out = get_tvm_output_with_vm(
             model,
@@ -1283,6 +1281,47 @@ def test_batch_matmul(target, dev):
     )
 
 
+@tvm.testing.parametrize_targets
+def test_matmulinteger16(target, dev):
+    def verify_matmulinteger16(a_shape, b_shape, out_shape):
+        a_dtype = "int16"
+        b_dtype = "int16"
+        low = np.iinfo(np.int16).min
+        high = np.iinfo(np.int16).max
+
+        a_proto = TensorProto.INT16
+        b_proto = TensorProto.INT16
+        out_proto = TensorProto.INT32
+        a_array = np.random.randint(low, high, size=a_shape).astype(a_dtype)
+        b_array = np.random.randint(low, high, size=b_shape).astype(b_dtype)
+
+        mul_node = helper.make_node("MatMulInteger16", ["a", "b"], ["out"], domain="com.microsoft")
+
+        graph = helper.make_graph(
+            [mul_node],
+            "matmuli16_test",
+            inputs=[
+                helper.make_tensor_value_info("a", a_proto, list(a_shape)),
+                helper.make_tensor_value_info("b", b_proto, list(b_shape)),
+            ],
+            outputs=[helper.make_tensor_value_info("out", out_proto, list(out_shape))],
+        )
+
+        model = helper.make_model(graph, producer_name="matmuli16_test")
+        verify_with_ort_with_inputs(model, [a_array, b_array], target=target, dev=dev)
+
+    # 2D computation to verify matmul op
+    verify_matmulinteger16((4, 3), (3, 4), (4, 4))
+    verify_matmulinteger16((5, 7), (7, 8), (5, 8))
+    # Verify 3D matmul using batch_matmul op
+    verify_matmulinteger16((2, 4, 3), (1, 3, 4), (2, 4, 4))
+    verify_matmulinteger16((1, 4, 3), (2, 3, 4), (2, 4, 4))
+    # Test implicit broadcasting
+    verify_matmulinteger16((2, 3, 5, 3), (2, 3, 3, 5), (2, 3, 5, 5))
+    verify_matmulinteger16((2, 7, 3), (3, 7), (2, 7, 7))
+    verify_matmulinteger16((2, 3, 4, 3), (3, 4), (2, 3, 4, 4))
+
+
 def verify_simple_dynamic_model(a_shape, b_shape, target, dev):
     def verify_model(model, a_shape, b_shape):
         a_array = np.random.uniform(size=a_shape).astype("float32")
@@ -1913,7 +1952,9 @@ def test_split(target, dev):
                 inputs.append(
                     helper.make_tensor_value_info("split", TensorProto.INT64, list(np_split.shape))
                 )
-                indata = [indata, np_split]
+                # TODO(mbrookhart): Support dynamic split, edit this test case to remove split from
+                # the initializer and add it back to the input data
+                indata = [indata]  # , np_split]
                 initializer.append(
                     helper.make_tensor("split", TensorProto.INT64, list(np_split.shape), np_split)
                 )
@@ -1948,6 +1989,8 @@ def test_split(target, dev):
             opset=opset,
             target=target,
             dev=dev,
+            use_vm=True,
+            freeze_params=(opset >= 13),
         )
 
     # 1D
@@ -1956,12 +1999,22 @@ def test_split(target, dev):
         [1.0, 2.0, 3.0, 4.0, 5.0, 6.0], [[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]], [2, 2, 2], 0, False
     )
     verify_split([1.0, 2.0, 3.0, 4.0, 5.0, 6.0], [[1.0, 2.0], [3.0], [4.0, 5.0, 6.0]], [2, 1, 3], 0)
+    verify_split(
+        [1.0, 2.0, 3.0, 4.0, 5.0, 6.0], [[1.0, 2.0], [3.0], [4.0, 5.0, 6.0]], [2, 1, 3], 0, opset=13
+    )
     # 2D
     verify_split(
         [[1.0, 2.0, 3.0, 4.0], [7.0, 8.0, 9.0, 10.0]],
         [[[1.0, 2.0], [7.0, 8.0]], [[3.0, 4.0], [9.0, 10.0]]],
         [2, 2],
         1,
+    )
+    verify_split(
+        [[1.0, 2.0, 3.0, 4.0], [7.0, 8.0, 9.0, 10.0]],
+        [[[1.0, 2.0], [7.0, 8.0]], [[3.0, 4.0], [9.0, 10.0]]],
+        [2, 2],
+        1,
+        opset=13,
     )
     # Split evenly (unstack)
     verify_split([1, 2, 3], [[1], [2], [3]], False, 0, False)
@@ -5999,6 +6052,7 @@ if __name__ == "__main__":
     test_onehot()
     test_gemm()
     test_matmul()
+    test_matmulinteger16()
     test_gather()
     test_gatherelements()
     test_gather_nd()

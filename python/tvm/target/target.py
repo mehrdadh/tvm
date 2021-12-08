@@ -36,6 +36,11 @@ class TargetKind(Object):
         """Returns the dict of available option names and types"""
         return dict(_ffi_api.ListTargetKindOptions(self))
 
+    @staticmethod
+    def options_from_name(kind_name: str):
+        """Returns the dict of available option names and types from a name of TargetKind"""
+        return dict(_ffi_api.ListTargetKindOptionsFromName(kind_name))
+
 
 @tvm._ffi.register_object
 class Target(Object):
@@ -140,11 +145,18 @@ class Target(Object):
         return _ffi_api.TargetCurrent(allow_none)
 
     @property
+    def arch(self):
+        """Returns the cuda arch from the target if it exists."""
+        return str(self.attrs.get("arch", ""))
+
+    @property
     def max_num_threads(self):
+        """Returns the max_num_threads from the target if it exists."""
         return int(self.attrs["max_num_threads"])
 
     @property
     def thread_warp_size(self):
+        """Returns the thread_warp_size from the target if it exists."""
         return int(self.attrs["thread_warp_size"])
 
     @property
@@ -228,17 +240,23 @@ def _merge_opts(opts, new_opts):
     return opts
 
 
-def cuda(model="unknown", options=None):
+def cuda(model="unknown", arch=None, options=None):
     """Returns a cuda target.
 
     Parameters
     ----------
     model: str
         The model of cuda device (e.g. 1080ti)
+    arch: str
+        The cuda architecture (e.g. sm_61)
     options : str or list of str
         Additional options
     """
     opts = _merge_opts(["-model=%s" % model], options)
+    if arch:
+        opts = _merge_opts(["-arch=%s" % arch], opts)
+    if not any(["-arch" in opt for opt in opts]):
+        warnings.warn("Try specifying cuda arch by adding 'arch=sm_xx' to your target.")
     return Target(" ".join(["cuda"] + opts))
 
 
