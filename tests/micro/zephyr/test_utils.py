@@ -157,7 +157,7 @@ def loadCMSIS(temp_dir):
     include_trees = {}
 
     for file in res["tree"]:
-        if file["path"] in {"CMSIS/DSP/Include", "CMSIS/DSP/Include/dsp", "CMSIS/NN/Include"}:
+        if file["path"] in {"CMSIS/DSP/Include", "CMSIS/DSP/Include/dsp", "CMSIS/NN/Include", "CMSIS/Core/Include"}:
             include_trees.update({file["path"]: file["sha"]})
 
     for path, sha in include_trees.items():

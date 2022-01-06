@@ -76,4 +76,6 @@ def temp_dir(board):
     if not os.path.exists(board_workspace.parent):
         os.makedirs(board_workspace.parent)
 
-    return tempdir(board_workspace)
+    # return tempdir(board_workspace)
+    os.mkdir(board_workspace)
+    return board_workspace

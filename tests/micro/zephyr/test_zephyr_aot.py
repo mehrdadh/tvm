@@ -35,6 +35,11 @@ from tvm.relay.backend import Executor, Runtime
 from tvm.contrib.download import download_testdata
 from tvm.micro.testing import aot_transport_init_wait, aot_transport_find_message
 
+try:
+    from tvm.relay.op.contrib import cmsisnn
+except ImportError:
+    pass
+
 import test_utils
 
 
@@ -134,6 +139,111 @@ def test_qemu_make_fail(temp_dir, board, west_cmd, tvm_debug):
         project.transport().open()
     assert "QEMU setup failed" in str(excinfo.value)
 
+# @tvm.testing.requires_micro
+# @tvm.testing.requires_cmsisnn
+# def test_cmsis_nn(temp_dir, board, west_cmd, tvm_debug):
+#     model = test_utils.ZEPHYR_BOARDS[board]
+#     build_config = {"debug": tvm_debug}
+
+#     data_shape = (1, 3, 16, 16)
+#     weight_shape = (8, 3, 5, 5)
+#     data = relay.var("input_1", relay.TensorType(data_shape, "float32"))
+#     weight = relay.var("weight", relay.TensorType(weight_shape, "float32"))
+#     y = relay.nn.conv2d(
+#         data,
+#         weight,
+#         padding=(2, 2),
+#         kernel_size=(5, 5),
+#         kernel_layout="OIHW",
+#         out_dtype="float32",
+#     )
+#     output_shape = (1, 8, 16, 16)
+
+#     f = relay.Function([data, weight], y)
+#     mod = tvm.IRModule.from_expr(f)
+#     mod = relay.transform.InferType()(mod)
+
+#     weight_sample = np.random.rand(
+#         weight_shape[0], weight_shape[1], weight_shape[2], weight_shape[3]
+#     ).astype("float32")
+#     params = {mod["main"].params[1].name_hint: weight_sample}
+#     cmsisnn_mod = cmsisnn.partition_for_cmsisnn(mod, params)
+    
+#     target = tvm.target.target.micro(model)
+#     executor = Executor(
+#         "aot", {"unpacked-api": True, "interface-api": "c", "workspace-byte-alignment": 4}
+#     )
+#     runtime = Runtime("crt")
+#     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
+#         lowered = relay.build(cmsisnn_mod, target, params=params, runtime=runtime, executor=executor)
+    
+#     data_sample = np.random.rand(data_shape[0], data_shape[1], data_shape[2], data_shape[3]).astype(
+#         "float32"
+#     )
+#     project, _ = test_utils.generate_project(
+#         temp_dir,
+#         board,
+#         west_cmd,
+#         lowered,
+#         build_config,
+#         data_sample,
+#         output_shape,
+#         "float32",
+#         load_cmsis=False,
+#     )
+
+@tvm.testing.requires_micro
+@tvm.testing.requires_cmsisnn
+def test_cmsis_nn(temp_dir, board, west_cmd, tvm_debug):
+    model = test_utils.ZEPHYR_BOARDS[board]
+    input_shape = (1, 49, 10, 1)
+    output_shape = (1, 12)
+    build_config = {"debug": tvm_debug}
+
+    model_url = "https://github.com/tlc-pack/web-data/raw/25fe99fb00329a26bd37d3dca723da94316fd34c/testdata/microTVM/model/keyword_spotting_quant.tflite"
+    model_path = download_testdata(model_url, "keyword_spotting_quant.tflite", module="model")
+
+    # Import TFLite model
+    tflite_model_buf = open(model_path, "rb").read()
+    try:
+        import tflite
+
+        tflite_model = tflite.Model.GetRootAsModel(tflite_model_buf, 0)
+    except AttributeError:
+        import tflite.Model
+
+        tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model_buf, 0)
+
+    # Load TFLite model and convert to Relay
+    relay_mod, params = relay.frontend.from_tflite(
+        tflite_model, shape_dict={"input_1": input_shape}, dtype_dict={"input_1 ": "int8"}
+    )
+
+    cmsisnn_mod = cmsisnn.partition_for_cmsisnn(relay_mod, params)
+    
+    target = tvm.target.target.micro(model)
+    executor = Executor(
+        "aot", {"unpacked-api": True, "interface-api": "c", "workspace-byte-alignment": 4}
+    )
+    runtime = Runtime("crt")
+    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
+        lowered = relay.build(cmsisnn_mod, target, params=params, runtime=runtime, executor=executor)
+    
+    sample_url = "https://github.com/tlc-pack/web-data/raw/967fc387dadb272c5a7f8c3461d34c060100dbf1/testdata/microTVM/data/keyword_spotting_int8_6.pyc.npy"
+    sample_path = download_testdata(sample_url, "keyword_spotting_int8_6.pyc.npy", module="data")
+    sample = np.load(sample_path)
+
+    project, _ = test_utils.generate_project(
+        temp_dir,
+        board,
+        west_cmd,
+        lowered,
+        build_config,
+        sample,
+        output_shape,
+        "float32",
+        load_cmsis=True,
+    )
 
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__] + sys.argv[1:]))
