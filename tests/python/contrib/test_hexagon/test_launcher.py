@@ -83,8 +83,6 @@ def test_add(android_serial_number, tvm_tracker_host, tvm_tracker_port, adb_serv
         mod["add"](A_data, B_data, C_data)
         assert (C_data.numpy() == np.array([6, 7])).all()
 
-    launcher.stop_server()
-
 
 @requires_hexagon_toolchain
 def test_add_vtcm(android_serial_number, tvm_tracker_host, tvm_tracker_port, adb_server_socket):
@@ -131,8 +129,6 @@ def test_add_vtcm(android_serial_number, tvm_tracker_host, tvm_tracker_port, adb
         mod["add"](A_data, B_data, C_data)
         result = C_data.numpy()
         assert (result == np.array([6, 7])).all()
-
-    launcher.stop_server()
 
 
 class TestMatMul:
@@ -183,7 +179,6 @@ class TestMatMul:
             yt = tvm.nd.array(y, device=sess.device)
             zt = tvm.nd.array(z, device=sess.device)
             mod(xt, yt, zt)
-        launcher.stop_server()
 
         target_llvm = tvm.target.Target("llvm")
         mod = tvm.build(schedule, [X, Y, Z], tvm.target.Target(target_llvm, host=target_llvm))
@@ -257,8 +252,6 @@ def test_graph_executor(
         graph_mod.run(**inputs)
         hexagon_output = graph_mod.get_output(0).numpy()
 
-    launcher.stop_server()
-
     target_llvm = tvm.target.Target("llvm")
     with tvm.transform.PassContext(opt_level=3):
         llvm_lowered = tvm.relay.build(
@@ -276,7 +269,7 @@ def test_graph_executor(
 
 
 @requires_hexagon_toolchain
-def test_graph_executor_multiple_conv2d(
+def test_ssgraph_executor_multiple_conv2d(
     tvm_tracker_host, tvm_tracker_port, android_serial_number, adb_server_socket
 ):
     dtype = "float32"
@@ -356,8 +349,6 @@ def test_graph_executor_multiple_conv2d(
         graph_mod.set_input(**params)
         graph_mod.run(**inputs)
         hexagon_output = graph_mod.get_output(0).numpy()
-
-    launcher.stop_server()
 
     target_llvm = tvm.target.Target("llvm")
     with tvm.transform.PassContext(opt_level=3):
@@ -453,8 +444,6 @@ def test_aot_executor(tvm_tracker_host, tvm_tracker_port, android_serial_number,
         aot_mod.set_input(**inputs)
         aot_mod.run()
         hexagon_output = aot_mod.get_output(0).numpy()
-
-    launcher.stop_server()
 
     target_llvm = tvm.target.Target("llvm")
     with tvm.transform.PassContext(opt_level=3):
@@ -558,8 +547,6 @@ def test_aot_executor_multiple_conv2d(
         aot_mod.set_input(**inputs)
         aot_mod.run()
         hexagon_output = aot_mod.get_output(0).numpy()
-
-    launcher.stop_server()
 
     target_llvm = tvm.target.Target("llvm")
     with tvm.transform.PassContext(opt_level=3):

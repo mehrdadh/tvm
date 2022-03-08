@@ -111,6 +111,9 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
         self._rpc_info.update(rpc_info)
         self._workspace = self._create_workspace(workspace)
 
+    def __del__(self):
+        self.stop_server()
+
     @abc.abstractmethod
     def start_server(self):
         """Start the RPC server"""
@@ -348,12 +351,14 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
         for item in self.ANDROID_HEXAGON_RPC_FILES:
             self._copy_to_remote(lib_dir / item, self._workspace / item)
 
-    def _run_server_script(self):
-        """Setup the ADB connection and execute the server script."""
-
-        # Removed pre-defined forward/reverse rules
+    def _cleanup_adb_ports(self):
+        """Remove pre-defined forward/reverse rules"""
         subprocess.check_call(self._adb_device_sub_cmd + ["forward", "--remove-all"])
         subprocess.check_call(self._adb_device_sub_cmd + ["reverse", "--remove-all"])
+
+    def _prepare_adb_ports(self):
+        """Setup the ADB connection"""
+        self._cleanup_adb_ports()
 
         # Enable port reverse for RPC tracker
         rpc_tracker_port = self._rpc_info["rpc_tracker_port"]
@@ -369,6 +374,8 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
                 + ["forward", f"tcp:{rpc_server_port+i}", f"tcp:{rpc_server_port+i}"]
             )
 
+    def _run_server_script(self):
+        """Execute the server script."""
         # Run server and connect to tracker
         subprocess.Popen(
             self._adb_device_sub_cmd + ["shell", f"cd {self._workspace} && ./android_bash.sh"],
@@ -379,6 +386,7 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
 
     def start_server(self):
         """Abstract method implementation. See description in HexagonLauncherRPC."""
+        self._prepare_adb_ports()
         self._copy_binaries()
         self._run_server_script()
 
@@ -392,6 +400,7 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
         subprocess.Popen(
             self._adb_device_sub_cmd + ["shell", f"kill `cat {self._workspace}/rpc_pid.txt`"]
         )
+        self._cleanup_adb_ports()
 
 
 class HexagonLauncherSimulator(HexagonLauncherRPC):
