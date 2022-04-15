@@ -21,6 +21,7 @@ import sys
 import pytest
 import numpy as np
 import logging
+import onnx
 
 import tvm.testing
 from tvm import te
@@ -428,6 +429,245 @@ def test_aot_executor_multiple_conv2d(hexagon_session):
 
     tvm.testing.assert_allclose(hexagon_output, expected_output, rtol=1e-4, atol=1e-5)
 
+@requires_hexagon_toolchain
+def test_mnist(hexagon_launcher, hexagon_session):
+    dtype = "float32"
+    model_url = (
+        "https://github.com/onnx/models/raw/main/vision/classification/mnist/model/mnist-8.onnx"
+    )
+    model_path = tvm.contrib.download.download_testdata(model_url, "mnist-8.onnx", module="onnx")
+    onnx_model = onnx.load(model_path)
+
+    target_hexagon = tvm.target.hexagon("v68")
+    runtime = Runtime("cpp")
+    executor = Executor("graph", {"link-params": True})
+
+    data_in = np.random.rand(1, 1, 28, 28).astype(dtype=dtype)
+    
+    input_name = "Input3"
+    shape_dict = {input_name: data_in.shape}
+    relay_mod, params= relay.frontend.from_onnx(onnx_model, shape_dict, freeze_params=True)
+    inputs = {input_name: data_in}
+
+    temp = utils.tempdir()
+    dso_binary = "test_binary.so"
+    dso_binary_path = temp.relpath(dso_binary)
+
+    with tvm.transform.PassContext(opt_level=3):
+        lowered = tvm.relay.build(
+            relay_mod,
+            tvm.target.Target(target_hexagon, host=target_hexagon),
+            runtime=runtime,
+            executor=executor,
+            params=params,
+        )
+        lowered.get_lib().save(dso_binary_path)
+
+    if hexagon_session is None:
+        pytest.skip(msg="Skip hardware test since ANDROID_SERIAL_NUMBER is not set.")
+
+    hexagon_launcher.upload(dso_binary_path, dso_binary)
+
+    hexagon_mod = hexagon_launcher.get_graph_executor(
+        lowered.get_graph_json(), dso_binary, hexagon_session
+    )
+    hexagon_mod.set_input(**params)
+    hexagon_mod.run(**inputs)
+    hexagon_output = hexagon_mod.get_output(0).numpy()
+
+    target_llvm = tvm.target.Target("llvm")
+    with tvm.transform.PassContext(opt_level=3):
+        llvm_lowered = tvm.relay.build(
+            relay_mod,
+            tvm.target.Target(target_llvm, host=target_llvm),
+            runtime=runtime,
+            executor=executor,
+            params=params,
+        )
+    llvm_graph_mod = tvm.contrib.graph_executor.GraphModule(llvm_lowered["default"](tvm.cpu(0)))
+    llvm_graph_mod.set_input(**params)
+    llvm_graph_mod.run(**inputs)
+    expected_output = llvm_graph_mod.get_output(0).numpy()
+
+    tvm.testing.assert_allclose(hexagon_output, expected_output, rtol=1e-4, atol=1e-5)
+
+@requires_hexagon_toolchain
+def test_mobilenet(hexagon_launcher, hexagon_session):
+    dtype = "float32"
+    model_url = (
+        "https://github.com/onnx/models/raw/main/vision/classification/mobilenet/model/mobilenetv2-7.onnx"
+    )
+    model_path = tvm.contrib.download.download_testdata(model_url, "mobilenetv2-7.onnx", module="onnx")
+    onnx_model = onnx.load(model_path)
+
+    target_hexagon = tvm.target.hexagon("v68")
+    runtime = Runtime("cpp")
+    executor = Executor("graph", {"link-params": True})
+
+    data_in = np.random.rand(1, 3, 224, 224).astype(dtype=dtype)
+    
+    input_name = "input"
+    shape_dict = {input_name: data_in.shape}
+    relay_mod, params= relay.frontend.from_onnx(onnx_model, shape_dict, freeze_params=True)
+    inputs = {input_name: data_in}
+
+    temp = utils.tempdir()
+    dso_binary = "test_binary.so"
+    dso_binary_path = temp.relpath(dso_binary)
+
+    with tvm.transform.PassContext(opt_level=3):
+        lowered = tvm.relay.build(
+            relay_mod,
+            tvm.target.Target(target_hexagon, host=target_hexagon),
+            runtime=runtime,
+            executor=executor,
+            params=params,
+        )
+        lowered.get_lib().save(dso_binary_path)
+
+    if hexagon_session is None:
+        pytest.skip(msg="Skip hardware test since ANDROID_SERIAL_NUMBER is not set.")
+
+    hexagon_launcher.upload(dso_binary_path, dso_binary)
+
+    hexagon_mod = hexagon_launcher.get_graph_executor(
+        lowered.get_graph_json(), dso_binary, hexagon_session
+    )
+    hexagon_mod.set_input(**params)
+    hexagon_mod.run(**inputs)
+    hexagon_output = hexagon_mod.get_output(0).numpy()
+
+    target_llvm = tvm.target.Target("llvm")
+    with tvm.transform.PassContext(opt_level=3):
+        llvm_lowered = tvm.relay.build(
+            relay_mod,
+            tvm.target.Target(target_llvm, host=target_llvm),
+            runtime=runtime,
+            executor=executor,
+            params=params,
+        )
+    llvm_graph_mod = tvm.contrib.graph_executor.GraphModule(llvm_lowered["default"](tvm.cpu(0)))
+    llvm_graph_mod.set_input(**params)
+    llvm_graph_mod.run(**inputs)
+    expected_output = llvm_graph_mod.get_output(0).numpy()
+
+    import pdb; pdb.set_trace()
+    tvm.testing.assert_allclose(hexagon_output, expected_output, rtol=1e-4, atol=1e-5)
+
+
+@requires_hexagon_toolchain
+def test_mobilenet_debug(hexagon_launcher, hexagon_session):
+    dtype = "float32"
+    model_url = (
+        "https://github.com/onnx/models/raw/main/vision/classification/mobilenet/model/mobilenetv2-7.onnx"
+    )
+    model_path = tvm.contrib.download.download_testdata(model_url, "mobilenetv2-7.onnx", module="onnx")
+    onnx_model = onnx.load(model_path)
+
+    target_hexagon = tvm.target.hexagon("v68")
+    runtime = Runtime("cpp")
+    executor = Executor("graph", {"link-params": True})
+
+    data_in = np.random.rand(1, 3, 224, 224).astype(dtype=dtype)
+    
+    input_name = "input"
+    shape_dict = {input_name: data_in.shape}
+    relay_mod, params= relay.frontend.from_onnx(onnx_model, shape_dict)
+    inputs = {input_name: data_in}
+
+    temp = utils.tempdir()
+    dso_binary = "test_binary.so"
+    dso_binary_path = temp.relpath(dso_binary)
+
+    with tvm.transform.PassContext(opt_level=3):
+        lowered = tvm.relay.build(
+            relay_mod,
+            tvm.target.Target(target_hexagon, host=target_hexagon),
+            runtime=runtime,
+            executor=executor,
+            params=params,
+        )
+        lowered.get_lib().save(dso_binary_path)
+
+    if hexagon_session is None:
+        pytest.skip(msg="Skip hardware test since ANDROID_SERIAL_NUMBER is not set.")
+
+    hexagon_launcher.upload(dso_binary_path, dso_binary)
+
+    # hexagon_mod = hexagon_launcher.get_graph_executor(
+    #     lowered.get_graph_json(), dso_binary, hexagon_session
+    # )
+    import pdb; pdb.set_trace()
+    hexagon_debug_mod = hexagon_launcher.get_graph_debug_executor(
+        lowered.get_graph_json(), dso_binary, hexagon_session
+    )
+    import json
+    from tvm.runtime import ndarray
+    hexagon_graph_json_obj = json.loads(lowered.get_graph_json())
+    hexagon_nodes = hexagon_graph_json_obj["nodes"]
+    
+    with open("/home/mhessar/work/tvm/hexagon_output/relay.log", "w") as f:
+        for node in hexagon_nodes:
+            if node["op"] != "tvm_op":
+                continue
+            f.write(f"{node['name']}\n")
+
+    import pdb; pdb.set_trace()
+    # hexagon_debug_mod.run_individual(1)
+    import pdb; pdb.set_trace()
+    target_llvm = tvm.target.Target("llvm")
+    # with tvm.transform.PassContext(opt_level=3):
+    #     llvm_lowered = tvm.relay.build(
+    #         relay_mod,
+    #         tvm.target.Target(target_llvm, host=target_llvm),
+    #         runtime=runtime,
+    #         executor=executor,
+    #     )
+    # device = tvm.cpu(0)
+    # llvm_debug_mod = tvm.contrib.debugger.debug_executor.GraphModuleDebug(
+    #     llvm_lowered["debug_create"]("default", device),
+    #     [device],
+    #     llvm_lowered.get_graph_json(),
+    #     None,
+    # )
+    # llvm_graph_json_obj = json.loads(llvm_lowered.get_graph_json())
+    # llvm_nodes = llvm_graph_json_obj["nodes"]
+
+    # hexagon_debug_mod.set_input(**inputs)
+    # dtype = "float32"
+    # for node in hexagon_nodes:
+    #     if node["op"] != "tvm_op":
+    #         continue
+    #     import pdb; pdb.set_trace()
+    #   hexagon_output = tvm.nd.array(, dtype=dtype), device=hexagon_session.device)
+    #     llvm_output = None
+    #     hexagon_debug_mod.debug_get_output(node["name"], hexagon_output)
+    #     # llvm_debug_mod.debug_get_output(node["name"], llvm_output)
+    #     import pdb; pdb.set_trace()
+    #     print("mehrdad")
+
+    
+    # import pdb; pdb.set_trace()
+    # hexagon_mod.set_input(**params)
+    # import pdb; pdb.set_trace()
+    # hexagon_mod.run(**inputs)
+    # import pdb; pdb.set_trace()
+    # hexagon_output = hexagon_mod.get_output(0).numpy()
+
+    # target_llvm = tvm.target.Target("llvm")
+    # with tvm.transform.PassContext(opt_level=3):
+    #     llvm_lowered = tvm.relay.build(
+    #         relay_mod,
+    #         tvm.target.Target(target_llvm, host=target_llvm),
+    #         runtime=runtime,
+    #         executor=executor,
+    #     )
+    # llvm_graph_mod = tvm.contrib.graph_executor.GraphModule(llvm_lowered["default"](tvm.cpu(0)))
+    # llvm_graph_mod.set_input(**params)
+    # llvm_graph_mod.run(**inputs)
+    # expected_output = llvm_graph_mod.get_output(0).numpy()
+
+    # tvm.testing.assert_allclose(hexagon_output, expected_output, rtol=1e-4, atol=1e-5)
 
 if __name__ == "__main__":
     sys.exit(pytest.main(sys.argv))
