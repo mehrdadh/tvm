@@ -572,7 +572,10 @@ def test_mobilenet_debug(hexagon_launcher, hexagon_session):
     
     input_name = "input"
     shape_dict = {input_name: data_in.shape}
-    relay_mod, params= relay.frontend.from_onnx(onnx_model, shape_dict)
+    relay_mod, params= relay.frontend.from_onnx(onnx_model, shape_dict, freeze_params=True)
+    with open("/home/mhessar/work/tvm/hexagon_output/relay_mod.log", "w") as f:
+        f.write(str(relay_mod))
+    import pdb; pdb.set_trace()
     inputs = {input_name: data_in}
 
     temp = utils.tempdir()
@@ -597,7 +600,7 @@ def test_mobilenet_debug(hexagon_launcher, hexagon_session):
     # hexagon_mod = hexagon_launcher.get_graph_executor(
     #     lowered.get_graph_json(), dso_binary, hexagon_session
     # )
-    import pdb; pdb.set_trace()
+
     hexagon_debug_mod = hexagon_launcher.get_graph_debug_executor(
         lowered.get_graph_json(), dso_binary, hexagon_session
     )
@@ -606,7 +609,7 @@ def test_mobilenet_debug(hexagon_launcher, hexagon_session):
     hexagon_graph_json_obj = json.loads(lowered.get_graph_json())
     hexagon_nodes = hexagon_graph_json_obj["nodes"]
     
-    with open("/home/mhessar/work/tvm/hexagon_output/relay.log", "w") as f:
+    with open("/home/mhessar/work/tvm/hexagon_output/hexagon_funcs.log", "w") as f:
         for node in hexagon_nodes:
             if node["op"] != "tvm_op":
                 continue
@@ -616,13 +619,14 @@ def test_mobilenet_debug(hexagon_launcher, hexagon_session):
     # hexagon_debug_mod.run_individual(1)
     import pdb; pdb.set_trace()
     target_llvm = tvm.target.Target("llvm")
-    # with tvm.transform.PassContext(opt_level=3):
-    #     llvm_lowered = tvm.relay.build(
-    #         relay_mod,
-    #         tvm.target.Target(target_llvm, host=target_llvm),
-    #         runtime=runtime,
-    #         executor=executor,
-    #     )
+    with tvm.transform.PassContext(opt_level=3):
+        llvm_lowered = tvm.relay.build(
+            relay_mod,
+            tvm.target.Target(target_llvm, host=target_llvm),
+            runtime=runtime,
+            executor=executor,
+            params=params,
+        )
     # device = tvm.cpu(0)
     # llvm_debug_mod = tvm.contrib.debugger.debug_executor.GraphModuleDebug(
     #     llvm_lowered["debug_create"]("default", device),
@@ -630,8 +634,14 @@ def test_mobilenet_debug(hexagon_launcher, hexagon_session):
     #     llvm_lowered.get_graph_json(),
     #     None,
     # )
-    # llvm_graph_json_obj = json.loads(llvm_lowered.get_graph_json())
-    # llvm_nodes = llvm_graph_json_obj["nodes"]
+    llvm_graph_json_obj = json.loads(llvm_lowered.get_graph_json())
+    llvm_nodes = llvm_graph_json_obj["nodes"]
+
+    with open("/home/mhessar/work/tvm/hexagon_output/llvm_funcs.log", "w") as f:
+        for node in llvm_nodes:
+            if node["op"] != "tvm_op":
+                continue
+            f.write(f"{node['name']}\n")
 
     # hexagon_debug_mod.set_input(**inputs)
     # dtype = "float32"
