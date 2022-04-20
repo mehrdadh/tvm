@@ -22,12 +22,14 @@ import pytest
 import numpy as np
 import logging
 import onnx
+import json
 
 import tvm.testing
 from tvm import te
 from tvm import relay
 from tvm.relay.backend import Executor, Runtime
 from tvm.contrib import utils, ndk
+from tvm.runtime import ndarray
 from tvm.contrib.hexagon.build import HexagonLauncher
 import tvm.contrib.hexagon as hexagon
 
@@ -515,6 +517,7 @@ def test_mobilenet(hexagon_launcher, hexagon_session):
     dso_binary = "test_binary.so"
     dso_binary_path = temp.relpath(dso_binary)
 
+    # maybe add config={"tir.disable_vectorize": True}
     with tvm.transform.PassContext(opt_level=3):
         lowered = tvm.relay.build(
             relay_mod,
@@ -551,6 +554,8 @@ def test_mobilenet(hexagon_launcher, hexagon_session):
     llvm_graph_mod.run(**inputs)
     expected_output = llvm_graph_mod.get_output(0).numpy()
 
+    # file1 = "/home/mhessar/work/tvm/output2.npy"
+    # np.save(file1, hexagon_output)
     import pdb; pdb.set_trace()
     tvm.testing.assert_allclose(hexagon_output, expected_output, rtol=1e-4, atol=1e-5)
 
@@ -573,16 +578,16 @@ def test_mobilenet_debug(hexagon_launcher, hexagon_session):
     input_name = "input"
     shape_dict = {input_name: data_in.shape}
     relay_mod, params= relay.frontend.from_onnx(onnx_model, shape_dict, freeze_params=True)
+    inputs = {input_name: data_in}
+
     with open("/home/mhessar/work/tvm/hexagon_output/relay_mod.log", "w") as f:
         f.write(str(relay_mod))
-    import pdb; pdb.set_trace()
-    inputs = {input_name: data_in}
 
     temp = utils.tempdir()
     dso_binary = "test_binary.so"
     dso_binary_path = temp.relpath(dso_binary)
 
-    with tvm.transform.PassContext(opt_level=3):
+    with tvm.transform.PassContext(opt_level=3, disabled_pass={"AlterOpLayout"}):
         lowered = tvm.relay.build(
             relay_mod,
             tvm.target.Target(target_hexagon, host=target_hexagon),
@@ -592,34 +597,18 @@ def test_mobilenet_debug(hexagon_launcher, hexagon_session):
         )
         lowered.get_lib().save(dso_binary_path)
 
-    if hexagon_session is None:
-        pytest.skip(msg="Skip hardware test since ANDROID_SERIAL_NUMBER is not set.")
-
     hexagon_launcher.upload(dso_binary_path, dso_binary)
 
-    # hexagon_mod = hexagon_launcher.get_graph_executor(
-    #     lowered.get_graph_json(), dso_binary, hexagon_session
-    # )
-
+    base_dir = pathlib.Path("/home/mhessar/work/tvm/hexagon_output/")
     hexagon_debug_mod = hexagon_launcher.get_graph_debug_executor(
-        lowered.get_graph_json(), dso_binary, hexagon_session
+        lowered.get_graph_json(), dso_binary, hexagon_session, dump_root= str(base_dir / "debug_output")
     )
-    import json
-    from tvm.runtime import ndarray
-    hexagon_graph_json_obj = json.loads(lowered.get_graph_json())
-    hexagon_nodes = hexagon_graph_json_obj["nodes"]
-    
-    with open("/home/mhessar/work/tvm/hexagon_output/hexagon_funcs.log", "w") as f:
-        for node in hexagon_nodes:
-            if node["op"] != "tvm_op":
-                continue
-            f.write(f"{node['name']}\n")
+    # hexagon_graph_json_obj = json.loads(lowered.get_graph_json())
+    # hexagon_nodes = hexagon_graph_json_obj["nodes"]
 
-    import pdb; pdb.set_trace()
-    # hexagon_debug_mod.run_individual(1)
-    import pdb; pdb.set_trace()
+    llvm_base_dir = pathlib.Path("/home/mhessar/work/tvm/llvm_output/")
     target_llvm = tvm.target.Target("llvm")
-    with tvm.transform.PassContext(opt_level=3):
+    with tvm.transform.PassContext(opt_level=3, disabled_pass={"AlterOpLayout"}):
         llvm_lowered = tvm.relay.build(
             relay_mod,
             tvm.target.Target(target_llvm, host=target_llvm),
@@ -627,21 +616,56 @@ def test_mobilenet_debug(hexagon_launcher, hexagon_session):
             executor=executor,
             params=params,
         )
-    # device = tvm.cpu(0)
-    # llvm_debug_mod = tvm.contrib.debugger.debug_executor.GraphModuleDebug(
-    #     llvm_lowered["debug_create"]("default", device),
-    #     [device],
-    #     llvm_lowered.get_graph_json(),
-    #     None,
-    # )
+    device = tvm.cpu(0)
+    llvm_debug_mod = tvm.contrib.debugger.debug_executor.GraphModuleDebug(
+        llvm_lowered["debug_create"]("default", device),
+        [device],
+        llvm_lowered.get_graph_json(),
+        str(llvm_base_dir),
+    )
     llvm_graph_json_obj = json.loads(llvm_lowered.get_graph_json())
     llvm_nodes = llvm_graph_json_obj["nodes"]
 
+    graph_debug_json_str = open("/home/mhessar/work/tvm/hexagon_output/_tvmdbg_graph_dump.json", "r")
+    graph_debug_json = json.loads(graph_debug_json_str.read())
+    debug_nodes = graph_debug_json["nodes"]
+    llvm_debug_mod.set_input(**inputs)
+    hexagon_debug_mod.set_input(**inputs)
     with open("/home/mhessar/work/tvm/hexagon_output/llvm_funcs.log", "w") as f:
         for node in llvm_nodes:
             if node["op"] != "tvm_op":
                 continue
             f.write(f"{node['name']}\n")
+            for debug_node in debug_nodes:
+                if debug_node["name"] == node["name"]:
+                    llvm_output_shape = tuple(debug_node["shape"])
+
+            out_sample = np.zeros(shape=llvm_output_shape).astype(dtype)
+            llvm_output = tvm.nd.array(out_sample, device=device)
+            hexagon_output = tvm.nd.array(out_sample, device=hexagon_session.device)
+            import pdb; pdb.set_trace()
+            llvm_debug_mod.debug_get_output(node["name"], llvm_output)
+            hexagon_debug_mod.debug_get_output(node["name"], hexagon_output)
+            try:
+                logging.debug(f'name: {node["name"]}')
+                tvm.testing.assert_allclose(hexagon_output.numpy(), llvm_output.numpy(), rtol=1e-4, atol=1e-5)
+            except:
+                import pdb; pdb.set_trace()
+                print(f'name: {node["name"]}')
+    # llvm_debug_mod.run(**inputs)
+
+    fund_ind = 0
+    with open("/home/mhessar/work/tvm/hexagon_output/hexagon_funcs.log", "w") as f:
+        for node in hexagon_nodes:
+            if node["op"] != "tvm_op":
+                continue
+            fund_ind += 1
+            f.write(f"{node['name']}\n")
+            hexagon_output = hexagon_debug_mod.run_individual(fund_ind)
+            llvm_output = llvm_debug_mod.run_individual(fund_ind)
+            import pdb; pdb.set_trace()
+            tvm.testing.assert_allclose(hexagon_output, llvm_output, rtol=1e-4, atol=1e-5)
+    # hexagon_debug_mod.run(**inputs)
 
     # hexagon_debug_mod.set_input(**inputs)
     # dtype = "float32"

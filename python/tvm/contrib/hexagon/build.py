@@ -253,7 +253,7 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
         return tvm.contrib.graph_executor.create(graph_json, graph_mod, session.device)
 
     def get_graph_debug_executor(
-        self, graph_json: str, module_name: Union[str, pathlib.Path], session: Session
+        self, graph_json: str, module_name: Union[str, pathlib.Path], session: Session, dump_root: Union[str, pathlib.Path] = None,
     ):
         """Create a local GraphModuleDebug which consumes a remote libmod.
 
@@ -273,7 +273,7 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
             Runtime debug graph module that can be used to debug the graph.
         """
         graph_mod = self.load_module(module_name, session)
-        return tvm.contrib.debugger.debug_executor.create(graph_json, graph_mod, session.device)
+        return tvm.contrib.debugger.debug_executor.create(graph_json, graph_mod, session.device, dump_root=str(dump_root))
     
     def get_aot_executor(self, module_name: Union[str, pathlib.Path], session: Session):
         """Create a local AoTModule which consumes a remote libmod.
