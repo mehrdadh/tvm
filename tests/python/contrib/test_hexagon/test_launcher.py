@@ -276,6 +276,129 @@ def test_graph_executor_multiple_conv2d(hexagon_session):
 
     tvm.testing.assert_allclose(hexagon_output, expected_output, rtol=1e-4, atol=1e-5)
 
+repeat = tvm.testing.parameter(0, 1, 2, 3, 4, 0, 1, 2, 3, 4, 0, 1, 2, 3, 4,)
+@requires_hexagon_toolchain
+def test_graph_executor_debug(hexagon_session):
+    import textwrap
+    # RELAY_MODEL = textwrap.dedent(
+    #     """\
+    #     #[version = "0.0.5"]
+    #     def @main(%input: Tensor[(1, 3, 224, 224), float32]) {
+    #         %0 = nn.conv2d(%input, meta[relay.Constant][0] /* ty=Tensor[(32, 3, 3, 3), float32] */, strides=[2, 2], padding=[1, 1, 1, 1], channels=32, kernel_size=[3, 3]) /* ty=Tensor[(1, 32, 112, 112), float32] */;
+    #         %1 = nn.bias_add(%0, meta[relay.Constant][1] /* ty=Tensor[(32), float32] */) /* ty=Tensor[(1, 32, 112, 112), float32] */;
+    #         %2 = clip(%1, a_min=0f, a_max=6f) /* ty=Tensor[(1, 32, 112, 112), float32] */;
+    #         %3 = nn.conv2d(%2, meta[relay.Constant][2] /* ty=Tensor[(32, 1, 3, 3), float32] */, padding=[1, 1, 1, 1], groups=32, channels=32, kernel_size=[3, 3]) /* ty=Tensor[(1, 32, 112, 112), float32] */;
+    #         %4 = nn.bias_add(%3, meta[relay.Constant][3] /* ty=Tensor[(32), float32] */) /* ty=Tensor[(1, 32, 112, 112), float32] */;
+    #         %5 = clip(%4, a_min=0f, a_max=6f) /* ty=Tensor[(1, 32, 112, 112), float32] */;
+    #         %5
+    #     }
+    # """
+    # )
+
+    dtype = "float32"
+    input_shape = (1, 3, 224, 224)
+    w1_shape = (32, 3, 3, 3)
+    bias1_shape = (32,)
+    data = relay.var("data", relay.TensorType(input_shape, dtype))
+    weight1 = relay.var("weight1", relay.TensorType(w1_shape, dtype))
+    bias1 = relay.var("bias1", relay.TensorType(bias1_shape, dtype))
+    y1 = relay.nn.conv2d(
+        data,
+        weight1,
+        padding=(1, 1),
+        kernel_size=(3, 3),
+        strides=(2, 2),
+        data_layout="NCHW",
+        kernel_layout="OIHW",
+        out_dtype="float32",
+    )
+    b1 = relay.nn.bias_add(y1, bias1)
+    c1 = relay.clip(b1, 0.0, 6.0)
+
+    w2_shape = (32, 32, 3, 3)
+    bias2_shape = (32,)
+    weight2 = relay.var("weight2", relay.TensorType(w2_shape, dtype))
+    bias2 = relay.var("bias2", relay.TensorType(bias2_shape, dtype))
+    y2 = relay.nn.conv2d(
+        c1,
+        weight2,
+        padding=(1, 1),
+        kernel_size=(3, 3),
+        strides=(1, 1),
+        data_layout="NCHW",
+        kernel_layout="OIHW",
+        out_dtype="float32",
+    )
+    b2 = relay.nn.bias_add(y2, bias2)
+    c2 = relay.clip(b2, 0.0, 6.0)
+
+    f = relay.Function([data, weight1, bias1, weight2, bias2], c2)
+    relay_mod = tvm.IRModule.from_expr(f)
+    relay_mod = relay.transform.InferType()(relay_mod)
+    
+    # relay_mod = tvm.parser.fromtext(RELAY_MODEL)
+    import pdb; pdb.set_trace()
+
+    target_hexagon = tvm.target.hexagon("v68")
+    runtime = Runtime("cpp")
+    executor = Executor("graph", {"link-params": True})
+
+    low_range = 0.01
+    high_range = 0.05
+    weight1_data = np.random.uniform(low=low_range, high=high_range, size=w1_shape).astype(
+        dtype=dtype
+    )
+    weight2_data = np.random.uniform(low=low_range, high=high_range, size=w2_shape).astype(
+        dtype=dtype
+    )
+    bias1_data = np.random.uniform(low=low_range, high=high_range, size=bias1_shape).astype(
+        dtype=dtype
+    )
+    bias2_data = np.random.uniform(low=low_range, high=high_range, size=bias1_shape).astype(
+        dtype=dtype
+    )
+    params = {"weight1": weight1_data, "weight2": weight2_data, "bias1": bias1_data, "bias2": bias2_data}
+    # params = {}
+    with tvm.transform.PassContext(opt_level=3, disabled_pass={"AlterOpLayout"}):
+        lowered = tvm.relay.build(
+            relay_mod,
+            tvm.target.Target(target_hexagon, host=target_hexagon),
+            runtime=runtime,
+            executor=executor,
+            params=params,
+        )
+
+    if hexagon_session is None:
+        pytest.skip(msg="Skip hardware test since ANDROID_SERIAL_NUMBER is not set.")
+
+
+    input_data = np.random.uniform(low=low_range, high=high_range, size=input_shape).astype(dtype=dtype)
+
+    inputs = {"data": input_data}
+
+    graph_mod = hexagon_session.get_executor_from_factory(lowered)
+    graph_mod.set_input(**inputs)
+    graph_mod.run()
+    hexagon_output = graph_mod.get_output(0).numpy()
+
+    # target_llvm = tvm.target.Target("llvm")
+    # with tvm.transform.PassContext(opt_level=3, disabled_pass={"AlterOpLayout"}):
+    #     llvm_lowered = tvm.relay.build(
+    #         relay_mod,
+    #         tvm.target.Target(target_llvm, host=target_llvm),
+    #         runtime=runtime,
+    #         executor=executor,
+    #         params=params,
+    #     )
+    # llvm_graph_mod = tvm.contrib.graph_executor.GraphModule(llvm_lowered["default"](tvm.cpu(0)))
+    # llvm_graph_mod.set_input(**inputs)
+    # llvm_graph_mod.run()
+    # expected_output = llvm_graph_mod.get_output(0).numpy()
+
+    # # import pdb; pdb.set_trace()
+    # logging.debug(hexagon_output)
+    # logging.debug(expected_output)
+    # tvm.testing.assert_allclose(hexagon_output, expected_output, rtol=1e-4, atol=1e-5)
 
 def _workaround_create_aot_shared():
     # The C codegen uses TVM/RT functions directly. On Hexagon it should use
@@ -448,7 +571,7 @@ def test_mnist(hexagon_launcher, hexagon_session):
     
     input_name = "Input3"
     shape_dict = {input_name: data_in.shape}
-    relay_mod, params= relay.frontend.from_onnx(onnx_model, shape_dict, freeze_params=True)
+    relay_mod, params= relay.frontend.from_onnx(onnx_model, shape_dict, freeze_params=False)
     inputs = {input_name: data_in}
 
     temp = utils.tempdir()
@@ -473,8 +596,8 @@ def test_mnist(hexagon_launcher, hexagon_session):
     hexagon_mod = hexagon_launcher.get_graph_executor(
         lowered.get_graph_json(), dso_binary, hexagon_session
     )
-    hexagon_mod.set_input(**params)
-    hexagon_mod.run(**inputs)
+    hexagon_mod.set_input(**inputs)
+    hexagon_mod.run()
     hexagon_output = hexagon_mod.get_output(0).numpy()
 
     target_llvm = tvm.target.Target("llvm")
@@ -487,8 +610,9 @@ def test_mnist(hexagon_launcher, hexagon_session):
             params=params,
         )
     llvm_graph_mod = tvm.contrib.graph_executor.GraphModule(llvm_lowered["default"](tvm.cpu(0)))
-    llvm_graph_mod.set_input(**params)
-    llvm_graph_mod.run(**inputs)
+    llvm_graph_mod.set_input(**inputs)
+    import pdb; pdb.set_trace()
+    llvm_graph_mod.run()
     expected_output = llvm_graph_mod.get_output(0).numpy()
 
     tvm.testing.assert_allclose(hexagon_output, expected_output, rtol=1e-4, atol=1e-5)
@@ -511,6 +635,7 @@ def test_mobilenet(hexagon_launcher, hexagon_session):
     input_name = "input"
     shape_dict = {input_name: data_in.shape}
     relay_mod, params= relay.frontend.from_onnx(onnx_model, shape_dict, freeze_params=True)
+    import pdb; pdb.set_trace()
     inputs = {input_name: data_in}
 
     temp = utils.tempdir()
@@ -536,8 +661,8 @@ def test_mobilenet(hexagon_launcher, hexagon_session):
     hexagon_mod = hexagon_launcher.get_graph_executor(
         lowered.get_graph_json(), dso_binary, hexagon_session
     )
-    hexagon_mod.set_input(**params)
-    hexagon_mod.run(**inputs)
+    hexagon_mod.set_input(**inputs)
+    hexagon_mod.run()
     hexagon_output = hexagon_mod.get_output(0).numpy()
 
     target_llvm = tvm.target.Target("llvm")
@@ -550,8 +675,8 @@ def test_mobilenet(hexagon_launcher, hexagon_session):
             params=params,
         )
     llvm_graph_mod = tvm.contrib.graph_executor.GraphModule(llvm_lowered["default"](tvm.cpu(0)))
-    llvm_graph_mod.set_input(**params)
-    llvm_graph_mod.run(**inputs)
+    llvm_graph_mod.set_input(**inputs)
+    llvm_graph_mod.run()
     expected_output = llvm_graph_mod.get_output(0).numpy()
 
     # file1 = "/home/mhessar/work/tvm/output2.npy"
@@ -578,8 +703,13 @@ def test_mobilenet_debug(hexagon_launcher, hexagon_session):
     input_name = "input"
     shape_dict = {input_name: data_in.shape}
     relay_mod, params= relay.frontend.from_onnx(onnx_model, shape_dict, freeze_params=True)
-    inputs = {input_name: data_in}
+    
+    # param_base_dir = pathlib.Path("/home/mhessar/work/tvm/hexagon_output/params")
+    # for name,val in params.items():
+    #     np.save(param_base_dir / name, val.numpy())
+    # import pdb; pdb.set_trace()
 
+    inputs = {input_name: data_in}
     with open("/home/mhessar/work/tvm/hexagon_output/relay_mod.log", "w") as f:
         f.write(str(relay_mod))
 
@@ -596,15 +726,14 @@ def test_mobilenet_debug(hexagon_launcher, hexagon_session):
             params=params,
         )
         lowered.get_lib().save(dso_binary_path)
-
     hexagon_launcher.upload(dso_binary_path, dso_binary)
 
     base_dir = pathlib.Path("/home/mhessar/work/tvm/hexagon_output/")
     hexagon_debug_mod = hexagon_launcher.get_graph_debug_executor(
         lowered.get_graph_json(), dso_binary, hexagon_session, dump_root= str(base_dir / "debug_output")
     )
-    # hexagon_graph_json_obj = json.loads(lowered.get_graph_json())
-    # hexagon_nodes = hexagon_graph_json_obj["nodes"]
+    hexagon_graph_json_obj = json.loads(lowered.get_graph_json())
+    hexagon_nodes = hexagon_graph_json_obj["nodes"]
 
     llvm_base_dir = pathlib.Path("/home/mhessar/work/tvm/llvm_output/")
     target_llvm = tvm.target.Target("llvm")
@@ -625,6 +754,8 @@ def test_mobilenet_debug(hexagon_launcher, hexagon_session):
     )
     llvm_graph_json_obj = json.loads(llvm_lowered.get_graph_json())
     llvm_nodes = llvm_graph_json_obj["nodes"]
+    with open("/home/mhessar/work/tvm/hexagon_output/graph_llvm.log", "w") as llvm_graph:
+        llvm_graph.write(llvm_lowered.get_graph_json())
 
     graph_debug_json_str = open("/home/mhessar/work/tvm/hexagon_output/_tvmdbg_graph_dump.json", "r")
     graph_debug_json = json.loads(graph_debug_json_str.read())
@@ -636,14 +767,22 @@ def test_mobilenet_debug(hexagon_launcher, hexagon_session):
             if node["op"] != "tvm_op":
                 continue
             f.write(f"{node['name']}\n")
+
+            # if node["name"] == "tvmgen_default_fused_nn_conv2d_add_clip":
+            #     continue
+
             for debug_node in debug_nodes:
                 if debug_node["name"] == node["name"]:
                     llvm_output_shape = tuple(debug_node["shape"])
 
             out_sample = np.zeros(shape=llvm_output_shape).astype(dtype)
+            logging.debug(f'trying name: {node["name"]}, out_shape: {out_sample.shape}')
+            
+            import pdb; pdb.set_trace()
+
             llvm_output = tvm.nd.array(out_sample, device=device)
             hexagon_output = tvm.nd.array(out_sample, device=hexagon_session.device)
-            import pdb; pdb.set_trace()
+            
             llvm_debug_mod.debug_get_output(node["name"], llvm_output)
             hexagon_debug_mod.debug_get_output(node["name"], hexagon_output)
             try:
@@ -652,6 +791,9 @@ def test_mobilenet_debug(hexagon_launcher, hexagon_session):
             except:
                 import pdb; pdb.set_trace()
                 print(f'name: {node["name"]}')
+            del(llvm_output)
+            del(hexagon_output)
+
     # llvm_debug_mod.run(**inputs)
 
     fund_ind = 0
