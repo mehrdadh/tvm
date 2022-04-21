@@ -100,6 +100,11 @@ def schedule_adaptive_pool_hexagon(attrs, outs, target):
     with target:
         return topi.hexagon.schedule_adaptive_pool(outs)
 
+@schedule_injective.register("hexagon")
+def schedule_injective_hexagon(attrs, outs, target):
+    """Schedule injective ops for Hexagon"""
+    with target:
+        return topi.hexagon.schedule_injective(outs)
 
 @schedule_concatenate.register("hexagon")
 def schedule_concatenate_hexagon(attrs, outs, target):
@@ -107,13 +112,11 @@ def schedule_concatenate_hexagon(attrs, outs, target):
     with target:
         return topi.hexagon.schedule_injective(outs)
 
-
-@schedule_injective.register("hexagon")
-def schedule_injective_hexagon(attrs, outs, target):
-    """Schedule injective ops for Hexagon"""
+@schedule_transpose.register("hexagon")
+def schedule_transpose(attrs, outs, target):
+    """schedule transpose"""
     with target:
-        return topi.hexagon.schedule_injective(outs)
-
+        return topi.hexagon.schedule_injective(attrs, outs, target)
 
 @schedule_pool.register("hexagon")
 def schedule_pool_hexagon(attrs, outs, target):
