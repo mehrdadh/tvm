@@ -18,6 +18,7 @@
 import os
 import pathlib
 import sys
+from unicodedata import name
 import pytest
 import numpy as np
 import logging
@@ -276,29 +277,30 @@ def test_graph_executor_multiple_conv2d(hexagon_session):
 
     tvm.testing.assert_allclose(hexagon_output, expected_output, rtol=1e-4, atol=1e-5)
 
+def create_args(func):
+    args = {
+        k: tvm.nd.array(np.ones([x.value for x in v.shape]).astype(v.dtype))
+        for k, v in func.preflattened_buffer_map.items()
+    }
+    return [args[p] for p in func.params]
+
+def create_args_hexagon(func):
+    args = {
+        k: tvm.nd.array(np.ones([x.value for x in v.shape]).astype(v.dtype))
+        for k, v in func.preflattened_buffer_map.items()
+    }
+    return args, func.params
+
 repeat = tvm.testing.parameter(0, 1, 2, 3, 4, 0, 1, 2, 3, 4, 0, 1, 2, 3, 4,)
 @requires_hexagon_toolchain
 def test_graph_executor_debug(hexagon_session):
-    import textwrap
-    # RELAY_MODEL = textwrap.dedent(
-    #     """\
-    #     #[version = "0.0.5"]
-    #     def @main(%input: Tensor[(1, 3, 224, 224), float32]) -> Tensor[(1, 32, 112, 112), float32] {
-    #       %0 = nn.conv2d(%input, meta[relay.Constant][0] /* ty=Tensor[(32, 3, 3, 3), float32] */, strides=[2, 2], padding=[1, 1, 1, 1], channels=32, kernel_size=[3, 3]) /* ty=Tensor[(1, 32, 112, 112), float32] */;
-    #       %1 = nn.bias_add(%0, meta[relay.Constant][1] /* ty=Tensor[(32), float32] */) /* ty=Tensor[(1, 32, 112, 112), float32] */;
-    #       %2 = clip(%1, a_min=0f, a_max=6f) /* ty=Tensor[(1, 32, 112, 112), float32] */;
-    #       %3 = nn.conv2d(%2, meta[relay.Constant][2] /* ty=Tensor[(32, 1, 3, 3), float32] */, padding=[1, 1, 1, 1], groups=32, channels=32, kernel_size=[3, 3]) /* ty=Tensor[(1, 32, 112, 112), float32] */;
-    #       %4 = nn.bias_add(%3, meta[relay.Constant][3] /* ty=Tensor[(32), float32] */) /* ty=Tensor[(1, 32, 112, 112), float32] */;
-    #       %5 = clip(%4, a_min=0f, a_max=6f) /* ty=Tensor[(1, 32, 112, 112), float32] */;
-    #       %5
-    #     }
-    # """
-    # )
     with open("/home/mhessar/work/tvm/hexagon_output/relay_1.log", "r") as f:
         RELAY_MODEL = f.read()
-    import pdb; pdb.set_trace()
     dtype = "float32"
     input_shape = (1, 3, 224, 224)
+    low_range = 0.01
+    high_range = 0.05
+
     # w1_shape = (32, 3, 3, 3)
     # bias1_shape = (32,)
     # data = relay.var("data", relay.TensorType(input_shape, dtype))
@@ -338,15 +340,6 @@ def test_graph_executor_debug(hexagon_session):
     # relay_mod = tvm.IRModule.from_expr(f)
     # relay_mod = relay.transform.InferType()(relay_mod)
     
-    relay_mod = tvm.parser.fromtext(RELAY_MODEL)
-    import pdb; pdb.set_trace()
-
-    target_hexagon = tvm.target.hexagon("v68")
-    runtime = Runtime("cpp")
-    executor = Executor("graph", {"link-params": True})
-
-    low_range = 0.01
-    high_range = 0.05
     # weight1_data = np.random.uniform(low=low_range, high=high_range, size=w1_shape).astype(
     #     dtype=dtype
     # )
@@ -361,40 +354,59 @@ def test_graph_executor_debug(hexagon_session):
     # )
     # params = {"weight1": weight1_data, "weight2": weight2_data, "bias1": bias1_data, "bias2": bias2_data}
     # params = {}
-    with tvm.transform.PassContext(opt_level=3, disabled_pass={"AlterOpLayout"}):
-        # import pdb; pdb.set_trace()
-        # comp = tvm.relay.vm.VMCompiler()
-        # omod, oparams = comp.optimize(relay_mod, target=target_hexagon)
-        # print(omod)
 
-        lowered = tvm.relay.build(
+    relay_mod = tvm.parser.fromtext(RELAY_MODEL)
+    import pdb; pdb.set_trace()
+
+    target_hexagon = tvm.target.hexagon("v68")
+    target_llvm = tvm.target.Target("llvm")
+    runtime = Runtime("cpp")
+    executor = Executor("graph", {"link-params": True})
+
+    input_data = np.random.uniform(low=low_range, high=high_range, size=input_shape).astype(dtype=dtype)
+    # inputs = {"data": input_data}
+    inputs = {"input": input_data}
+
+    # with tvm.transform.PassContext(opt_level=3, disabled_pass={"AlterOpLayout"}):
+    #     comp = tvm.relay.vm.VMCompiler()
+    #     omod, oparams = comp.optimize(relay_mod, target=target_hexagon)
+
+    #     for f in omod.functions.values():
+    #         logging.debug(f)
+    #         if "global_symbol" in f.attrs.keys():
+    #             logging.debug(f.attrs["global_symbol"])
+    #             hexagon_func = tvm.build(f, target=tvm.target.Target(target_hexagon, host=target_hexagon), name=f.attrs["global_symbol"])
+    #             llvm_func = tvm.build(f, target=target_llvm)
+                
+    #             # get parameters and load to device for hexagon
+    #             hexagon_args, hexagon_func_params = create_args_hexagon(f)
+    #             hexagon_mod = hexagon_session.load_module(hexagon_func)
+    #             hexagon_func_call_args = []
+    #             for item in hexagon_func_params:
+    #                 item_numpy = hexagon_args[item].asnumpy()
+    #                 item_data = tvm.nd.array(item_numpy, device=hexagon_session.device)
+    #                 assert (item_data.numpy() == item_numpy).all()
+    #                 hexagon_func_call_args.append(item_data)
+
+    #             # run on hexagon
+    #             hexagon_mod[f.attrs["global_symbol"]](hexagon_func_call_args[0], hexagon_func_call_args[1], hexagon_func_call_args[2])
+                
+    #             # get args and run on LLVM
+    #             llvm_args = create_args(f)
+    #             llvm_func(*llvm_args)
+    #             import pdb; pdb.set_trace()
+    #             for a1, a2 in zip(hexagon_args, llvm_args):
+    #                 assert a1 == a2
+    #             print("Ran!")
+        
+    with tvm.transform.PassContext(opt_level=3, disabled_pass={"AlterOpLayout"}):
+        hexagon_lowered = tvm.relay.build(
             relay_mod,
             tvm.target.Target(target_hexagon, host=target_hexagon),
             runtime=runtime,
             executor=executor,
             # params=params,
         )
-
-    if hexagon_session is None:
-        pytest.skip(msg="Skip hardware test since ANDROID_SERIAL_NUMBER is not set.")
-
-
-    input_data = np.random.uniform(low=low_range, high=high_range, size=input_shape).astype(dtype=dtype)
-
-    # inputs = {"data": input_data}
-    inputs = {"input": input_data}
-
-    graph_mod = hexagon_session.get_executor_from_factory(lowered)
-    graph_mod.set_input(**inputs)
-    graph_mod.run()
-    hexagon_output = graph_mod.get_output(0).numpy()
-
-    target_llvm = tvm.target.Target("llvm")
-    with tvm.transform.PassContext(opt_level=3, disabled_pass={"AlterOpLayout"}):
-        # import pdb; pdb.set_trace()
-        # comp = tvm.relay.vm.VMCompiler()
-        # llvm_omod, llvm_oparams = comp.optimize(relay_mod, target=target_llvm)
-        # print(omod)
 
         llvm_lowered = tvm.relay.build(
             relay_mod,
@@ -403,6 +415,12 @@ def test_graph_executor_debug(hexagon_session):
             executor=executor,
             # params=params,
         )
+
+    graph_mod = hexagon_session.get_executor_from_factory(hexagon_lowered)
+    graph_mod.set_input(**inputs)
+    graph_mod.run()
+    hexagon_output = graph_mod.get_output(0).numpy()
+
     llvm_graph_mod = tvm.contrib.graph_executor.GraphModule(llvm_lowered["default"](tvm.cpu(0)))
     llvm_graph_mod.set_input(**inputs)
     llvm_graph_mod.run()
