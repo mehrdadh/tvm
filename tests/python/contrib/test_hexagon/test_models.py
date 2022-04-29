@@ -19,6 +19,7 @@ import os
 import sys
 import pytest
 import numpy as np
+import time
 
 import tvm.testing
 from tvm import te
@@ -87,7 +88,6 @@ def test_mobilenet(hexagon_session):
 
     tvm.testing.assert_allclose(hexagon_output, expected_output, rtol=1e-4, atol=1e-5)
 
-
 @requires_hexagon_toolchain
 def test_mobilenet_aot(hexagon_session, aot_host_target, aot_target):
     if hexagon_session._launcher._serial_number == "simulator":
@@ -133,6 +133,121 @@ def test_mobilenet_aot(hexagon_session, aot_host_target, aot_target):
 
     tvm.testing.assert_allclose(hexagon_output, expected_output, rtol=1e-4, atol=1e-5)
 
+
+model_url, model_name = tvm.testing.parameters(
+    ("https://github.com/onnx/models/raw/main/vision/classification/resnet/model/resnet18-v2-7.onnx", "resnet18-v2-7.onnx"),
+    ("https://github.com/onnx/models/raw/main/vision/classification/resnet/model/resnet50-v2-7.onnx", "resnet50-v2-7.onnx"),
+)
+@requires_hexagon_toolchain
+def test_resnet_graph(hexagon_session, model_url, model_name):
+    import onnx
+
+    dtype = "float32"
+    model_path = tvm.contrib.download.download_testdata(
+        model_url, model_name, module="onnx"
+    )
+    onnx_model = onnx.load(model_path)
+
+    target_hexagon = tvm.target.hexagon("v68")
+    target_llvm = tvm.target.Target("llvm")
+    runtime = Runtime("cpp")
+    executor = Executor("graph", {"link-params": True})
+
+    data_in = np.random.rand(1, 3, 224, 224).astype(dtype=dtype)
+
+    input_name = "data"
+    shape_dict = {input_name: data_in.shape}
+    relay_mod, params = relay.frontend.from_onnx(onnx_model, shape_dict, freeze_params=True)
+    inputs = {input_name: data_in}
+
+    with tvm.transform.PassContext(opt_level=3):
+        hexagon_lowered = tvm.relay.build(
+            relay_mod,
+            tvm.target.Target(target_hexagon, host=target_hexagon),
+            runtime=runtime,
+            executor=executor,
+            params=params,
+        )
+
+        llvm_lowered = tvm.relay.build(
+            relay_mod,
+            tvm.target.Target(target_llvm, host=target_llvm),
+            runtime=runtime,
+            executor=executor,
+            params=params,
+        )
+
+    graph_mod = hexagon_session.get_executor_from_factory(hexagon_lowered)
+    graph_mod.set_input(**inputs)
+    
+    time_start = time.time()
+    graph_mod.run()
+    time_end = time.time()
+    runtime_seconds = time_end - time_start
+    print(f"Runtime for {model_name} model GraphExecutor: {runtime_seconds}")
+
+    hexagon_output = graph_mod.get_output(0).numpy()
+
+    llvm_graph_mod = tvm.contrib.graph_executor.GraphModule(llvm_lowered["default"](tvm.cpu(0)))
+    llvm_graph_mod.set_input(**inputs)
+
+    llvm_graph_mod.run()
+    expected_output = llvm_graph_mod.get_output(0).numpy()
+
+    tvm.testing.assert_allclose(hexagon_output, expected_output, rtol=1e-4, atol=1e-5)
+
+@requires_hexagon_toolchain
+def test_resnet_aot(hexagon_session, aot_host_target, aot_target, model_url, model_name):
+    import onnx
+    dtype = "float32"
+    model_path = tvm.contrib.download.download_testdata(
+        model_url, model_name, module="onnx"
+    )
+    onnx_model = onnx.load(model_path)
+
+    data_in = np.random.rand(1, 3, 224, 224).astype(dtype=dtype)
+    input_name = "data"
+    shape_dict = {input_name: data_in.shape}
+    relay_mod, params = relay.frontend.from_onnx(onnx_model, shape_dict, freeze_params=True)
+    inputs = {input_name: data_in}
+
+    target_llvm = tvm.target.Target("llvm")
+    with tvm.transform.PassContext(opt_level=3):
+        hexagon_lowered = tvm.relay.build(
+            relay_mod,
+            tvm.target.Target(aot_target, host=aot_host_target),
+            runtime=Runtime("cpp"),
+            executor=Executor("aot", {"unpacked-api": False, "interface-api": "packed"}),
+            params=params,
+        )
+
+        llvm_lowered = tvm.relay.build(
+            relay_mod,
+            tvm.target.Target(target_llvm, host=target_llvm),
+            runtime=Runtime("cpp"),
+            executor=Executor("graph", {"link-params": True}),
+            params=params,
+        )
+
+    aot_mod = hexagon_session.get_executor_from_factory(hexagon_lowered)
+    aot_mod.set_input(**inputs)
+    
+    time_start = time.time()
+    aot_mod.run()
+    time_end = time.time()
+    runtime_seconds = time_end - time_start
+
+    codegen = "LLVM" if str(aot_target).startswith("llvm") else "C"
+    print(f"Runtime for {model_name} model using AOTExecutor and {codegen} codegen: {runtime_seconds}")
+
+    hexagon_output = aot_mod.get_output(0).numpy()
+
+    llvm_graph_mod = tvm.contrib.graph_executor.GraphModule(llvm_lowered["default"](tvm.cpu(0)))
+    llvm_graph_mod.set_input(**inputs)
+    llvm_graph_mod.run()
+    expected_output = llvm_graph_mod.get_output(0).numpy()
+
+    tvm.testing.assert_allclose(hexagon_output, expected_output, rtol=1e-4, atol=1e-5)
 
 if __name__ == "__main__":
     sys.exit(pytest.main(sys.argv))
