@@ -219,6 +219,10 @@ if(USE_HEXAGON_RPC)
     target_link_libraries(hexagon_rpc_sim
       -Wl,--whole-archive tvm_runtime -Wl,--no-whole-archive
     )
+    
+    set(HEXAGON_RPC_SKEL_LIBS "")
+    find_library(POSIX_LIBRARY posix HINTS /opt/qualcomm/hexagon_sdk/rtos/qurt/computev68/lib/pic)
+    list(APPEND HEXAGON_RPC_SKEL_LIBS ${POSIX_LIBRARY})
 
   elseif(BUILD_FOR_HOST)
     find_hexagon_toolchain()

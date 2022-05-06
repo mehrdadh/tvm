@@ -760,7 +760,8 @@ if(BUILD_FOR_HEXAGON)
   # Link tvm_runtime into the RPC skel library. Make sure it's built
   # as a part of the "runtime" target.
   if(USE_HEXAGON_RPC)
-    target_link_libraries(hexagon_rpc_skel -Wl,--whole-archive tvm_runtime -Wl,--no-whole-archive)
+    list(APPEND HEXAGON_RPC_SKEL_LIBS -Wl,--whole-archive tvm_runtime -Wl,--no-whole-archive)
+    target_link_libraries(hexagon_rpc_skel ${HEXAGON_RPC_SKEL_LIBS})
     add_dependencies(runtime hexagon_rpc_skel)
   endif()
 endif()
