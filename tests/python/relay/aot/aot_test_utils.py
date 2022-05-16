@@ -180,6 +180,19 @@ NP_TYPE_TO_C = {
 }
 
 
+TEMPLATE_PROJECT_DIR = (
+    pathlib.Path(os.path.dirname(os.path.abspath(__file__)))
+    / ".."
+    / ".."
+    / ".."
+    / ".."
+    / "apps"
+    / "microtvm"
+    / "corstone300"
+    / "template_project"
+)
+
+
 def mangle_name(mod_name, name):
     mod_name = mangle_module_name(mod_name)
     return mod_name + "_" + name
@@ -206,6 +219,41 @@ def convert_to_relay(
     return mod, params
 
 
+def create_header_file_for_project_api(tensor_name, npy_data, output_path, data_linkage, tar_file):
+    import io
+
+    """
+    This method generates a header file containing the data contained in the numpy array provided.
+    It is used to capture the tensor data (for both inputs and expected outputs) to be bundled into the standalone application.
+    """
+    header_file = io.StringIO()
+    # file_path = pathlib.Path(f"{output_path}/" + tensor_name).resolve()
+    # create header file
+    # raw_path = file_path.with_suffix(".h").resolve()
+    # with open(raw_path, "w") as header_file:
+    header_file.write("#include <stddef.h>\n")
+    header_file.write("#include <stdint.h>\n")
+    header_file.write("#include <dlpack/dlpack.h>\n")
+    header_file.write(f"const size_t {tensor_name}_len = {npy_data.size};\n")
+
+    emit_data_linkage(header_file, data_linkage)
+
+    header_file.write(f"{NP_TYPE_TO_C[str(npy_data.dtype)]} {tensor_name}[] =")
+
+    header_file.write("{")
+    for i in np.ndindex(npy_data.shape):
+        header_file.write(f"{npy_data[i]}, ")
+    header_file.write("};\n\n")
+
+    header_file_bytes = bytes(header_file.getvalue(), "utf-8")
+    raw_path = pathlib.Path(output_path) / f"{tensor_name}.h"
+    ti = tarfile.TarInfo(name=str(raw_path))
+    ti.size = len(header_file_bytes)
+    ti.mode = 0o644
+    ti.type = tarfile.REGTYPE
+    tar_file.addfile(ti, io.BytesIO(header_file_bytes))
+
+
 def parametrize_aot_options(test):
     """Parametrize over valid option combinations"""
 
@@ -213,9 +261,12 @@ def parametrize_aot_options(test):
         shutil.which("arm-none-eabi-gcc") is None, reason="ARM embedded toolchain unavailable"
     )
 
-    interface_api = ["packed", "c"]
-    use_unpacked_api = [True, False]
-    test_runner = [AOT_DEFAULT_RUNNER, AOT_CORSTONE300_RUNNER]
+    # interface_api = ["packed", "c"]
+    interface_api = ["c"]
+    # use_unpacked_api = [True, False]
+    use_unpacked_api = [True]
+    # test_runner = [AOT_DEFAULT_RUNNER, AOT_CORSTONE300_RUNNER]
+    test_runner = [AOT_CORSTONE300_RUNNER]
 
     all_combinations = itertools.product(interface_api, use_unpacked_api, test_runner)
 
@@ -587,6 +638,10 @@ def create_main(
     use_stack_allocator=True,
     use_workspace_io=False,
 ):
+    output_path = pathlib.Path(output_path)
+    if not output_path.exists():
+        output_path.mkdir()
+
     file_path = pathlib.Path(f"{output_path}/" + test_name).resolve()
     # create header file
     raw_path = file_path.with_suffix(".c").resolve()
@@ -736,6 +791,135 @@ def compile_models(
     return compiled_mods
 
 
+def run_and_check_with_project_api(
+    models: List[AOTCompiledTestModel],
+    runner: AOTTestRunner,
+    interface_api: str,
+    debug_calculated_workspaces=False,
+    workspace_byte_alignment=8,
+    data_linkage: AOTDataLinkage = None,
+    test_dir: str = None,
+    verbose: bool = False,
+    use_workspace_io: bool = False,
+):
+    """
+    This method uses the original test data and compiled runtime.Modules
+    to run in the test runner to verify the results.
+    """
+
+    def run_and_check_body(base_path):
+        base_path = pathlib.Path(base_path)
+        project_dir = base_path / "project"
+        project_dir.mkdir()
+
+        workspace_bytes = 0
+        # Extra tar file for headers
+        with tempfile.NamedTemporaryFile() as headers_tar_temp_file:
+            with tarfile.open(headers_tar_temp_file.name, "w:gz") as tf:
+
+                for compiled_model in models:
+                    model = compiled_model.model
+
+                    # Extract only to get workspace size
+                    temp_model_tar_directory = base_path / "temp"
+                    if not temp_model_tar_directory.exists():
+                        temp_model_tar_directory.mkdir()
+                    model_tar_path = temp_model_tar_directory / f"{model.name}.tar"
+                    export_model_library_format(compiled_model.executor_factory, model_tar_path)
+
+                    # Interface C APIs does not need compiler generated
+                    # workspace to generate the test application, because
+                    # workspace size is codegen'd as a macro to
+                    # tvmgen_<model_name>.h.
+                    if interface_api != "c":
+                        workspace_bytes += mlf_extract_workspace_size_bytes(model_tar_path)
+
+                    workspace_bytes += model.extra_memory_in_bytes
+
+                    for key in model.inputs:
+                        sanitized_tensor_name = re.sub(r"\W", "_", key)
+                        create_header_file_for_project_api(
+                            f'{mangle_name(model.name, "input_data")}_{sanitized_tensor_name}',
+                            model.inputs[key],
+                            "include",
+                            data_linkage,
+                            tf,
+                        )
+
+                    for key in model.outputs:
+                        sanitized_tensor_name = re.sub(r"\W", "_", key)
+                        create_header_file_for_project_api(
+                            f'{mangle_name(model.name, "output_data")}_{sanitized_tensor_name}',
+                            np.zeros(model.outputs[key].shape, model.outputs[key].dtype),
+                            "include",
+                            data_linkage,
+                            tf,
+                        )
+                        create_header_file_for_project_api(
+                            f'{mangle_name(model.name, "expected_output_data")}_{sanitized_tensor_name}',
+                            model.outputs[key],
+                            "include",
+                            data_linkage,
+                            tf,
+                        )
+
+            custom_params = " ".join(
+                [f" {param}='{value}'" for param, value in runner.parameters.items()]
+            )
+            with tempfile.NamedTemporaryFile() as log_output_file:
+                compile_definitions = [
+                    f"-DTVM_RUNTIME_ALLOC_ALIGNMENT_BYTES={workspace_byte_alignment}"
+                ]
+                # The calculated workspaces will not account for stack allocator tags used for debugging
+                if debug_calculated_workspaces:
+                    compile_definitions.append("-DTVM_CRT_STACK_ALLOCATOR_ENABLE_LIFO_CHECK")
+
+                project_options = {
+                    "compile_definitions": compile_definitions,
+                    "workspace_bytes": workspace_bytes,
+                    "extra_files_tar": str(headers_tar_temp_file.name),
+                    "custom_params": custom_params,
+                    "log_output_file": str(log_output_file.name),
+                }
+
+                use_usmp = runner.pass_config.get("tir.usmp.enable", False)
+                # We only need the stack allocator if USMP is not used
+                use_stack_allocator = not use_usmp
+
+                project_src = project_dir / "src"
+                if not project_src.exists():
+                    project_src.mkdir()
+
+                create_main(
+                    "main.c",
+                    models,
+                    project_src,
+                    runner.includes,
+                    runner.prologue,
+                    runner.epilogue,
+                    data_linkage,
+                    interface_api,
+                    workspace_bytes,
+                    use_stack_allocator,
+                    use_workspace_io,
+                )
+
+                project = tvm.micro.project.generate_project_from_mlf(
+                    str(TEMPLATE_PROJECT_DIR), project_dir, model_tar_path, project_options
+                )
+                project.build()
+                project.flash()
+
+                with open(log_output_file.name) as run_log:
+                    assert AOT_SUCCESS_TOKEN in run_log.read()
+
+    if test_dir is None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            run_and_check_body(tmpdir)
+    else:
+        run_and_check_body(test_dir)
+
+
 def run_and_check(
     models: List[AOTCompiledTestModel],
     runner: AOTTestRunner,
@@ -879,6 +1063,58 @@ def run_and_check(
             run_and_check_body(os.path.join(tmpdir, "test"))
     else:
         run_and_check_body(test_dir)
+
+
+def compile_and_run_with_project_api(
+    models: Union[List[AOTTestModel], AOTTestModel],
+    runner: AOTTestRunner,
+    interface_api: str,
+    use_unpacked_api: bool,
+    debug_calculated_workspaces: bool = False,
+    workspace_byte_alignment: int = 8,
+    enable_op_fusion: bool = True,
+    data_linkage: AOTDataLinkage = None,
+    use_runtime_executor: bool = True,
+    target: str = "c",
+    target_opts: Dict = None,
+    test_dir: str = None,
+    verbose: bool = False,
+):
+    """This is a wrapper API to compile and run models as test for AoT
+
+    Parameters
+    ----------
+    test_dir : str
+        This path will contain build, codegen, include directories
+    verbose: bool
+        Prints commands to build and run AOT test runner
+    """
+
+    if target_opts:
+        for key, val in target_opts.items():
+            target += f" {key}={val}"
+
+    compiled_test_mods = compile_models(
+        models=models,
+        interface_api=interface_api,
+        use_unpacked_api=use_unpacked_api,
+        workspace_byte_alignment=workspace_byte_alignment,
+        enable_op_fusion=enable_op_fusion,
+        pass_config=runner.pass_config,
+        use_runtime_executor=use_runtime_executor,
+        target=tvm.target.Target(target),
+    )
+
+    run_and_check_with_project_api(
+        models=compiled_test_mods,
+        runner=runner,
+        interface_api=interface_api,
+        debug_calculated_workspaces=debug_calculated_workspaces,
+        workspace_byte_alignment=workspace_byte_alignment,
+        data_linkage=data_linkage,
+        test_dir=test_dir,
+        verbose=verbose,
+    )
 
 
 def compile_and_run(

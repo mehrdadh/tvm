@@ -22,6 +22,7 @@ import sys
 import os
 import tarfile
 import pathlib
+from turtle import showturtle
 
 import numpy as np
 import pytest
@@ -46,7 +47,41 @@ from aot_test_utils import (
     compile_models,
     parametrize_aot_options,
     create_relay_module_and_inputs_from_tflite_file,
+    compile_and_run_with_project_api,
 )
+
+
+@parametrize_aot_options
+# @pytest.mark.parametrize("groups,weight_shape", [(1, 32), (32, 1)])
+@pytest.mark.parametrize("groups,weight_shape", [(1, 32)])
+def test_project(interface_api, use_unpacked_api, test_runner, groups, weight_shape):
+    """Test a subgraph with a single conv2d operator."""
+
+    dtype = "float32"
+    ishape = (1, 32, 14, 14)
+    wshape = (32, weight_shape, 3, 3)
+
+    data0 = relay.var("data", shape=ishape, dtype=dtype)
+    weight0 = relay.var("weight", shape=wshape, dtype=dtype)
+    out = relay.nn.conv2d(data0, weight0, kernel_size=(3, 3), padding=(1, 1), groups=groups)
+    main_f = relay.Function([data0, weight0], out)
+    mod = tvm.IRModule()
+    mod["main"] = main_f
+    mod = transform.InferType()(mod)
+
+    i_data = np.random.uniform(0, 1, ishape).astype(dtype)
+    w1_data = np.random.uniform(0, 1, wshape).astype(dtype)
+
+    inputs = OrderedDict([("data", i_data), ("weight", w1_data)])
+
+    output_list = generate_ref_data(mod, inputs)
+
+    compile_and_run_with_project_api(
+        AOTTestModel(module=mod, inputs=inputs, outputs=output_list),
+        test_runner,
+        interface_api,
+        use_unpacked_api,
+    )
 
 
 def test_error_c_interface_with_packed_api():
@@ -140,7 +175,8 @@ def test_add_with_params(interface_api, use_unpacked_api, test_runner):
 
 
 @parametrize_aot_options
-@pytest.mark.parametrize("groups,weight_shape", [(1, 32), (32, 1)])
+# @pytest.mark.parametrize("groups,weight_shape", [(1, 32), (32, 1)])
+@pytest.mark.parametrize("groups,weight_shape", [(1, 32)])
 def test_conv2d(interface_api, use_unpacked_api, test_runner, groups, weight_shape):
     """Test a subgraph with a single conv2d operator."""
     dtype = "float32"
@@ -166,6 +202,7 @@ def test_conv2d(interface_api, use_unpacked_api, test_runner, groups, weight_sha
         test_runner,
         interface_api,
         use_unpacked_api,
+        test_dir="/home/mhessar/work/tvm/aot/temp",
     )
 
 

@@ -19,6 +19,7 @@
 
 import pathlib
 from typing import Union
+import typing
 
 from .. import __version__
 from ..contrib import utils
@@ -123,9 +124,18 @@ class TemplateProject:
 
     def generate_project_from_mlf(self, model_library_format_path, project_dir, options: dict):
         """Generate a project from MLF file."""
+        # TODO(mehrdadh): visit this approach
+        if isinstance(model_library_format_path, list):
+            mlf_combined_path = ""
+            for item in model_library_format_path:
+                mlf_combined_path += str(item)
+                mlf_combined_path += ";"
+        else:
+            mlf_combined_path = str(model_library_format_path)
+
         self._check_project_options(options)
         self._api_client.generate_project(
-            model_library_format_path=str(model_library_format_path),
+            model_library_format_path=mlf_combined_path,
             standalone_crt_dir=get_standalone_crt_dir(),
             project_dir=project_dir,
             options=options,
@@ -181,7 +191,7 @@ def generate_project(
 def generate_project_from_mlf(
     template_project_dir: Union[pathlib.Path, str],
     project_dir: Union[pathlib.Path, str],
-    mlf_path: Union[pathlib.Path, str],
+    mlf_path: Union[pathlib.Path, str, typing.List[str], typing.List[pathlib.Path]],
     options: dict,
 ):
     """Generate a project from a platform template and an existing Model Library Format archive.
@@ -206,6 +216,5 @@ def generate_project_from_mlf(
     GeneratedProject :
         A class that wraps the generated project and which can be used to further interact with it.
     """
-
     template = TemplateProject.from_directory(str(template_project_dir))
-    return template.generate_project_from_mlf(str(mlf_path), str(project_dir), options)
+    return template.generate_project_from_mlf(mlf_path, str(project_dir), options)
