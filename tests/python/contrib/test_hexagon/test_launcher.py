@@ -24,7 +24,8 @@ from tvm import te
 from tvm import relay
 from tvm.relay.backend import Executor, Runtime
 from tvm.contrib.hexagon.session import Session
-
+from tvm.relay.backend import vm
+from tvm import runtime
 
 @tvm.testing.requires_hexagon
 def test_add(hexagon_session: Session):
@@ -386,6 +387,39 @@ def test_aot_executor_multiple_conv2d(hexagon_session: Session, aot_host_target,
 
     tvm.testing.assert_allclose(hexagon_output, expected_output, rtol=1e-4, atol=1e-5)
 
+@tvm.testing.requires_hexagon
+def test_relay_vm_conv2d(hexagon_session: Session):
+    dtype = "float32"
+    input_shape = (1, 128, 128, 3)
+    w_shape = (5, 5, 3, 8)
+    data = relay.var("data", relay.TensorType(input_shape, dtype))
+    weight = relay.var("weight", relay.TensorType(w_shape, dtype))
+    y = relay.nn.conv2d(
+        data,
+        weight,
+        padding=(2, 2),
+        kernel_size=(5, 5),
+        data_layout="NHWC",
+        kernel_layout="HWIO",
+        out_dtype="float32",
+    )
+    f = relay.Function([data, weight], y)
+    relay_mod = tvm.IRModule.from_expr(f)
+
+    target_hexagon = tvm.target.hexagon("v68")
+    target = tvm.target.Target(target_hexagon, host=target_hexagon)
+
+    with tvm.transform.PassContext(opt_level=3):
+        exe = vm.compile(
+            relay_mod,
+            target,
+        )
+    dev = hexagon_session.device
+    vm_mod  = hexagon_session.get_executor_from_factory(exe)
+    import pdb; pdb.set_trace()
+    vm_rt = runtime.vm.VirtualMachine(vm_mod, dev)
+    import pdb; pdb.set_trace()
+    print(vm_mod)
 
 if __name__ == "__main__":
     tvm.testing.main()

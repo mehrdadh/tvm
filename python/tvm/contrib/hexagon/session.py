@@ -24,6 +24,7 @@ from typing import Union
 
 import tvm
 from tvm import rpc as _rpc
+from tvm import runtime
 import tvm.contrib.hexagon as hexagon
 from tvm.relay.backend.executor_factory import (
     ExecutorFactoryModule,
@@ -237,6 +238,8 @@ class Session:
             return self._aot_executor_from_factory(module)
         if isinstance(module, GraphExecutorFactoryModule):
             return self._graph_executor_from_factory(module)
+        if isinstance(module, runtime.vm.Executable):
+            return self._relay_vm_executable_executor(module)
 
         raise TypeError(f"Unsupported executor type: {type(module)}")
 
@@ -358,3 +361,20 @@ class Session:
 
         aot_mod = self.load_module(binary_name)
         return tvm.runtime.executor.AotModule(aot_mod["default"](self.device))
+
+    def _relay_vm_executable_executor(self, exec: runtime.vm.Executable):
+        assert self._rpc is not None, "Hexagon session must be started using __enter__ prior to use"
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_dir = pathlib.Path(temp_dir)
+            binary_path = temp_dir / "exec.so"
+
+            exec.mod.export_library(
+                binary_path,
+                fcompile=hexagon.create_aot_shared,
+                hexagon_arch="v68",
+            )
+
+            self.upload(binary_path, "exec.so")
+
+        return self._rpc.get_function("tvm.hexagon.load_module")("exec.so")
