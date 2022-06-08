@@ -554,7 +554,9 @@ class Handler(server.ProjectAPIHandler):
 
         if self._is_qemu(options):
             # Some boards support more than one emulator, so ensure QEMU is set.
-            cmake_args.append(f"-DEMU_PLATFORM=qemu")
+            # cmake_args.append(f"-DEMU_PLATFORM=qemu")
+            cmake_args.append(f"-DEMU_PLATFORM=armfvp")
+            cmake_args.append(f"-DARMFVP_BIN_PATH=/opt/arm/FVP_Corstone_SSE-300/models/Linux64_GCC-6.4/")
 
         cmake_args.append(f"-DBOARD:STRING={options['zephyr_board']}")
 
