@@ -119,12 +119,12 @@ class Executable : public ModuleNode {
    * Must be called before \p SaveToBinary and friends if late-bound constants are
    * desired. Otherwise can be ignore.
    */
-  void MoveLateBoundConstantsToStream(dmlc::Stream* stream, size_t byte_limit);
+  void MoveLateBoundConstantsToStream(dmlc::Stream* stream, uint64_t byte_limit);
 
   /*!
    * \brief As for \p MoveLateBoundConstantsToStream, but save to file at \p path.
    */
-  void MoveLateBoundConstantsToFile(const std::string& path, size_t byte_limit);
+  void MoveLateBoundConstantsToFile(const std::string& path, uint64_t byte_limit);
 
   /*!
    * \brief Restores the late-bound constants for the executable (if any) from given byte-stream.

@@ -369,6 +369,7 @@ class Session:
             temp_dir = pathlib.Path(temp_dir)
             binary_path = temp_dir / "exec.so"
 
+            import pdb; pdb.set_trace()
             exec.mod.export_library(
                 binary_path,
                 fcompile=hexagon.create_aot_shared,
@@ -377,4 +378,4 @@ class Session:
 
             self.upload(binary_path, "exec.so")
 
-        return self._rpc.get_function("tvm.hexagon.load_module")("exec.so")
+        return self._rpc.get_function("tvm.hexagon.load_module")(os.path.join(self._launcher._workspace, "exec.so"))

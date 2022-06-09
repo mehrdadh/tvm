@@ -95,7 +95,7 @@ PackedFunc Executable::GetFunction(const std::string& name, const ObjectPtr<Obje
       CHECK_EQ(args.size(), 2);
       std::string path = args[0];
       uint64_t byte_limit = args[1];
-      MoveLateBoundConstantsToFile(path, static_cast<size_t>(byte_limit));
+      MoveLateBoundConstantsToFile(path, static_cast<uint64_t>(byte_limit));
     });
   } else if (name == "load_late_bound_consts") {
     return PackedFunc([this](TVMArgs args, TVMRetValue* rv) {
@@ -129,7 +129,7 @@ std::string Executable::GetFunctionParameterName(std::string func_name, uint32_t
 std::string Executable::GetBytecode() const {
   std::ostringstream oss;
 
-  for (size_t i = 0; i < functions.size(); ++i) {
+  for (uint64_t i = 0; i < functions.size(); ++i) {
     const auto& func = functions[i];
     // Print the header of the function format.
     oss << "VM Function[" << i << "]: " << func.name << "(";
@@ -148,7 +148,7 @@ std::string Executable::GetBytecode() const {
     // Print the instructions of a `VMFunction`.
     // The part after ";" is the instruction in text format.
     oss << "opcode, fields # inst(text):" << std::endl;
-    for (size_t idx = 0; idx < func.instructions.size(); ++idx) {
+    for (uint64_t idx = 0; idx < func.instructions.size(); ++idx) {
       const auto& instr = func.instructions[idx];
       const auto& serialized_instr = SerializeInstruction(instr);
       std::ostringstream line;
@@ -168,7 +168,7 @@ std::string Executable::GetBytecode() const {
 
 std::string Executable::GetConstants() const {
   std::ostringstream oss;
-  for (size_t i = 0; i < constants.size(); ++i) {
+  for (uint64_t i = 0; i < constants.size(); ++i) {
     const auto& constant = constants[i];
     auto ndarray = Downcast<NDArray>(constant);
     oss << "VM Const[" << i
@@ -180,7 +180,7 @@ std::string Executable::GetConstants() const {
 
 std::string Executable::GetVirtualDevices() const {
   std::ostringstream oss;
-  for (size_t i = 0; i < virtual_devices.size(); ++i) {
+  for (uint64_t i = 0; i < virtual_devices.size(); ++i) {
     const auto& device = virtual_devices[i];
     oss << "VM VirtualDevice[" << i << "]: device type " << device.device_type << " and id "
         << device.device_id << std::endl;
@@ -244,7 +244,7 @@ std::string Executable::Stats() const {
   oss << "  Primitive ops (#" << primitive_map.size() << "): [";
   std::vector<std::string> prim_ops;
   for (const auto& it : primitive_map) {
-    auto packed_index = static_cast<size_t>(it.second);
+    auto packed_index = static_cast<uint64_t>(it.second);
     if (prim_ops.size() <= packed_index) {
       prim_ops.resize(packed_index + 1);
     }
@@ -300,15 +300,15 @@ void Executable::SaveVirtualDevicesSection(dmlc::Stream* strm) {
   strm->Write(host_device_index);
 }
 
-void Executable::MoveLateBoundConstantsToStream(dmlc::Stream* stream, size_t byte_limit) {
+void Executable::MoveLateBoundConstantsToStream(dmlc::Stream* stream, uint64_t byte_limit) {
   ICHECK(late_bound_constant_names.empty());
   late_bound_constant_names.reserve(constants.size());
   Map<String, NDArray> map;
-  size_t total_late_bound_bytes = 0;
-  for (size_t const_index = 0; const_index < constants.size(); ++const_index) {
+  uint64_t total_late_bound_bytes = 0;
+  for (uint64_t const_index = 0; const_index < constants.size(); ++const_index) {
     const auto ndarray = Downcast<NDArray>(constants[const_index]);
     ICHECK(ndarray.defined()) << "Undefined constant at index " << const_index;
-    size_t num_bytes = runtime::GetDataSize(*ndarray.operator->());
+    uint64_t num_bytes = runtime::GetDataSize(*ndarray.operator->());
     if (num_bytes < byte_limit) {
       // Leave as immediate.
       late_bound_constant_names.emplace_back(nullptr);
@@ -326,7 +326,7 @@ void Executable::MoveLateBoundConstantsToStream(dmlc::Stream* stream, size_t byt
   runtime::SaveParams(stream, map);
 }
 
-void Executable::MoveLateBoundConstantsToFile(const std::string& path, size_t byte_limit) {
+void Executable::MoveLateBoundConstantsToFile(const std::string& path, uint64_t byte_limit) {
   std::string bytes;
   dmlc::MemoryStringStream stream(&bytes);
   MoveLateBoundConstantsToStream(&stream, byte_limit);
@@ -341,7 +341,7 @@ void Executable::LoadLateBoundConstantsFromStream(dmlc::Stream* stream) {
   ICHECK_EQ(late_bound_constant_names.size(), constants.size());
   Map<String, NDArray> map = runtime::LoadParams(stream);
   VLOG(1) << "loaded " << map.size() << " late-bound constants";
-  for (size_t const_index = 0; const_index < constants.size(); ++const_index) {
+  for (uint64_t const_index = 0; const_index < constants.size(); ++const_index) {
     if (!late_bound_constant_names[const_index].defined()) {
       ICHECK(constants[const_index].defined())
           << "Undefined immediate constant at index " << const_index;
@@ -391,7 +391,7 @@ void Executable::SaveConstantSection(dmlc::Stream* stream) {
   // Save the overall number of constants.
   stream->Write(static_cast<uint64_t>(constants.size()));
 
-  for (size_t const_index = 0; const_index < constants.size(); ++const_index) {
+  for (uint64_t const_index = 0; const_index < constants.size(); ++const_index) {
     if (late_bound_constant_names.empty() || !late_bound_constant_names[const_index].defined()) {
       // Tag immediate constants by 0.
       stream->Write(kImmediateConstTag);
@@ -421,7 +421,7 @@ void Executable::LoadConstantSection(dmlc::Stream* stream) {
   uint64_t sz;
   // Load the overall number of constants.
   STREAM_CHECK(stream->Read(&sz, sizeof(sz)), "constants table size");
-  size_t size = static_cast<size_t>(sz);
+  uint64_t size = static_cast<uint64_t>(sz);
 
   VLOG(1) << "loading " << size << " constants";
 
@@ -430,7 +430,7 @@ void Executable::LoadConstantSection(dmlc::Stream* stream) {
   bool any_late_bound = false;
 
   // Load each of the constants.
-  for (size_t const_index = 0; const_index < size; const_index++) {
+  for (uint64_t const_index = 0; const_index < size; const_index++) {
     uint32_t tag;
     STREAM_CHECK(stream->Read(&tag, sizeof(tag)), "constant tag");
     if (tag == kImmediateConstTag) {
@@ -468,7 +468,7 @@ void Executable::LoadConstantSection(dmlc::Stream* stream) {
 void Executable::SavePrimitiveOpNames(dmlc::Stream* strm) {
   std::vector<std::string> primitive_names;
   for (const auto& it : this->primitive_map) {
-    auto packed_index = static_cast<size_t>(it.second);
+    auto packed_index = static_cast<uint64_t>(it.second);
     if (primitive_names.size() <= packed_index) {
       primitive_names.resize(packed_index + 1);
     }
@@ -477,7 +477,7 @@ void Executable::SavePrimitiveOpNames(dmlc::Stream* strm) {
   strm->Write(primitive_names);
   std::map<uint64_t, std::map<std::string, std::string>> primitive_attrs;
   for (const auto& it : this->op_attrs) {
-    auto packed_index = static_cast<size_t>(it.first);
+    auto packed_index = static_cast<uint64_t>(it.first);
     std::map<std::string, std::string> attrs;
     for (const auto& elem : it.second) {
       // TODO(tkonolige): cannot serialize ObjectRefs with dmlc's serializer, so we just serialize
@@ -768,7 +768,7 @@ void Executable::LoadVirtualDevicesSection(dmlc::Stream* strm) {
 void Executable::LoadGlobalSection(dmlc::Stream* strm) {
   std::vector<std::string> globals;
   STREAM_CHECK(strm->Read(&globals), "global");
-  for (size_t i = 0; i < globals.size(); i++) {
+  for (uint64_t i = 0; i < globals.size(); i++) {
     this->global_map.insert({globals[i], i});
   }
 }
@@ -776,7 +776,7 @@ void Executable::LoadGlobalSection(dmlc::Stream* strm) {
 void Executable::LoadPrimitiveOpNames(dmlc::Stream* strm) {
   std::vector<std::string> primitive_names;
   STREAM_CHECK(strm->Read(&primitive_names), "primitive name");
-  for (size_t i = 0; i < primitive_names.size(); i++) {
+  for (uint64_t i = 0; i < primitive_names.size(); i++) {
     this->primitive_map.insert({primitive_names[i], i});
   }
 
@@ -795,7 +795,7 @@ void Executable::LoadPrimitiveOpNames(dmlc::Stream* strm) {
 // `instr_fields`.
 inline std::vector<Index> ExtractFields(const std::vector<Index>& instr_fields, Index start,
                                         Index cnt) {
-  ICHECK_LE(static_cast<size_t>(start + cnt), instr_fields.size());
+  ICHECK_LE(static_cast<uint64_t>(start + cnt), instr_fields.size());
   std::vector<Index> ret;
   for (auto i = start; i < start + cnt; i++) {
     ret.push_back(instr_fields[i]);
@@ -824,7 +824,7 @@ Instruction DeserializeInstruction(const VMInstructionSerializer& instr) {
     case Opcode::InvokePacked: {
       // Number of fields = 3 + instr.arity
       DCHECK_GE(instr.fields.size(), 3U);
-      DCHECK_EQ(instr.fields.size(), 3U + static_cast<size_t>(instr.fields[1]));
+      DCHECK_EQ(instr.fields.size(), 3U + static_cast<uint64_t>(instr.fields[1]));
 
       Index packed_index = instr.fields[0];
       Index arity = instr.fields[1];
@@ -835,7 +835,7 @@ Instruction DeserializeInstruction(const VMInstructionSerializer& instr) {
     case Opcode::AllocTensor: {
       // Number of fields = 7 + instr.alloc_tensor.ndim
       DCHECK_GE(instr.fields.size(), 7U);
-      DCHECK_EQ(instr.fields.size(), 7U + static_cast<size_t>(instr.fields[5]));
+      DCHECK_EQ(instr.fields.size(), 7U + static_cast<uint64_t>(instr.fields[5]));
 
       RegName storage_reg = instr.fields[0];
       RegName offset = instr.fields[1];
@@ -872,7 +872,7 @@ Instruction DeserializeInstruction(const VMInstructionSerializer& instr) {
     case Opcode::AllocADT: {
       // Number of fields = 3 + instr.num_fields
       DCHECK_GE(instr.fields.size(), 3U);
-      DCHECK_EQ(instr.fields.size(), 3U + static_cast<size_t>(instr.fields[1]));
+      DCHECK_EQ(instr.fields.size(), 3U + static_cast<uint64_t>(instr.fields[1]));
 
       Index constructor_tag = instr.fields[0];
       Index num_fields = instr.fields[1];
@@ -884,7 +884,7 @@ Instruction DeserializeInstruction(const VMInstructionSerializer& instr) {
     case Opcode::AllocClosure: {
       // Number of fields = 3 + instr.num_freevar
       DCHECK_GE(instr.fields.size(), 3U);
-      DCHECK_EQ(instr.fields.size(), 3U + static_cast<size_t>(instr.fields[1]));
+      DCHECK_EQ(instr.fields.size(), 3U + static_cast<uint64_t>(instr.fields[1]));
 
       Index clo_index = instr.fields[0];
       Index num_freevar = instr.fields[1];
@@ -922,7 +922,7 @@ Instruction DeserializeInstruction(const VMInstructionSerializer& instr) {
     case Opcode::Invoke: {
       // Number of fields = 3 + instr.num_args
       DCHECK_GE(instr.fields.size(), 3U);
-      DCHECK_EQ(instr.fields.size(), 3U + static_cast<size_t>(instr.fields[1]));
+      DCHECK_EQ(instr.fields.size(), 3U + static_cast<uint64_t>(instr.fields[1]));
 
       Index func_index = instr.fields[0];
       Index num_args = instr.fields[1];
@@ -934,7 +934,7 @@ Instruction DeserializeInstruction(const VMInstructionSerializer& instr) {
     case Opcode::InvokeClosure: {
       // Number of fields = 3 + instr.num_closure_args
       DCHECK_GE(instr.fields.size(), 3U);
-      DCHECK_EQ(instr.fields.size(), 3U + static_cast<size_t>(instr.fields[1]));
+      DCHECK_EQ(instr.fields.size(), 3U + static_cast<uint64_t>(instr.fields[1]));
 
       Index closure = instr.fields[0];
       Index num_closure_args = instr.fields[1];
@@ -999,16 +999,16 @@ void Executable::LoadCodeSection(dmlc::Stream* strm) {
   uint64_t sz;
   STREAM_CHECK(strm->Read(&sz, sizeof(sz)), "code");
 
-  size_t num_funcs = static_cast<size_t>(sz);
+  uint64_t num_funcs = static_cast<uint64_t>(sz);
   this->functions.resize(num_funcs);
-  for (size_t i = 0; i < num_funcs; i++) {
+  for (uint64_t i = 0; i < num_funcs; i++) {
     // Load the function info.
     VMFunctionSerializer loaded_func;
     STREAM_CHECK(loaded_func.Load(strm), "code/function");
 
     // Load the instructions.
     std::vector<Instruction> instructions;
-    for (size_t j = 0; j < loaded_func.num_instructions; j++) {
+    for (uint64_t j = 0; j < loaded_func.num_instructions; j++) {
       VMInstructionSerializer instr;
       std::vector<Index> instr_fields;
       STREAM_CHECK(instr.Load(strm), "code/instruction");
