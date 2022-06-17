@@ -131,18 +131,30 @@ PackedFunc AotExecutor::GetFunction(const std::string& name,
       CHECK(String::CanConvertFrom(args[0])) << "Input key is not a string";
       *rv = this->GetInputIndex(args[0].operator String());
     });
+  } else if (name == "get_function") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      CHECK(String::CanConvertFrom(args[0])) << "Function name is not a string";
+      *rv = this->GetModuleFunction(args[0].operator String());
+    });
+  } else if (name == "run_individual_node") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      CHECK(String::CanConvertFrom(args[0])) << "Node name is not a string";
+      *rv = this->RunIndividualFunction(args[0].operator String());
+    });
   } else {
     return PackedFunc();
   }
 }
 
 void AotExecutor::Run() {
+  LOG(ERROR) << "Mehrdad: Run called";
   auto pf = module_.GetFunction(
       get_name_mangled(metadata_->mod_name(), ::tvm::runtime::symbol::tvm_module_main),
       true /* query_imports */);
   ICHECK(pf != nullptr) << "Module entrypoint is not defined";
 
   const int num_args = args_.size();
+  LOG(ERROR) << "mehrdad: num_args: " << num_args;
   auto call_values = ::std::make_unique<TVMValue[]>(num_args);
   auto call_type_codes = ::std::make_unique<int[]>(num_args);
   for (int i = 0; i < num_args; ++i) {
@@ -154,6 +166,18 @@ void AotExecutor::Run() {
   TVMArgs args{call_values.get(), call_type_codes.get(), num_args};
   TVMRetValue rv;
   pf.CallPacked(args, &rv);
+}
+
+int AotExecutor::GetModuleFunction(const std::string& func_name) {
+  auto pf = module_.GetFunction(func_name, true /* query_imports */);
+  ICHECK(pf != nullptr) << "Function {" << func_name << "} is not defined";
+  return 0;
+}
+
+NDArray AotExecutor::RunIndividualFunction(const std::string& func_name) {
+  auto pf = module_.GetFunction(func_name, true /* query_imports */);
+  ICHECK(pf != nullptr) << "Function {" << func_name << "} is not defined";
+  return GetInput(0);
 }
 
 int AotExecutor::GetInputIndex(const std::string& name) {

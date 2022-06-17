@@ -484,7 +484,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     }
 
     ICHECK(func_call.defined()) << "Must define func_call";
-
+    LOG(ERROR) << "mehrdad: func_call: " << func_call;
     if (has_c_device_api_context) {
       func_call = tir::SeqStmt(Array<tir::Stmt>({
           GenerateDeviceHook(device_context, "Open"),
@@ -492,9 +492,23 @@ class AOTExecutorCodegen : public MixedModeVisitor {
           GenerateDeviceHook(device_context, "Close"),
       }));
     }
+    LOG(ERROR) << "mehrdad: func_call after: " << func_call;
 
     tir::Stmt body = tir::SeqStmt({func_call});
     LOG(INFO) << "CreateFuncCall: " << call_lowered_props.lowered_func->name_hint << " -> " << body;
+    stmts_.push_back(body);
+
+    CreateDebugFuncCall();  
+  }
+
+  void CreateDebugFuncCall() {
+    // TODO(mehrdadh): add placeholder
+    tvm::Array<PrimExpr> args{tvm::tir::StringImm("tvmgen_packed_func_debug")};
+
+    tir::Stmt func_call = tir::Evaluate(
+            tvm::tir::Call(DataType::Int(32), tvm::tir::builtin::call_extern(), args));
+    // create_func_call_stmts.push_back(debug_place_holder);
+    tir::Stmt body = tir::SeqStmt({func_call});
     stmts_.push_back(body);
   }
 
@@ -1063,6 +1077,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     }
 
     mod = transform::ToANormalForm()(mod);
+    std::cout << "mehrdad: mod: " << mod;
 
     IRModule lowered_mod =
         tec::LowerTE(mod_name, config_, [this, workspace_byte_alignment](BaseFunc func) {
@@ -1078,6 +1093,8 @@ class AOTExecutorCodegen : public MixedModeVisitor {
           // lowering process directly.
           tec::UpdateFunctionMetadata(func, this->function_metadata_, workspace_byte_alignment);
         })(mod);
+
+    std::cout << "mehrdad: lowered_mod" << lowered_mod;
 
     auto lowered_main = lowered_mod->Lookup("main");
     auto lowered_main_func = GetRef<Function>(lowered_main.as<FunctionNode>());

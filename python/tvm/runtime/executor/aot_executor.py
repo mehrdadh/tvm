@@ -17,7 +17,44 @@
 """A Python wrapper for the Module-based Model Runtime Interface for Ahead-of-Time compilation."""
 
 import numpy as np
+import pathlib
 
+import tvm
+
+def create(model_path, device):
+    # TODO(mehrdadh): change description
+    """Create a runtime executor module given a graph and module.
+
+    Parameters
+    ----------
+    graph_json_str : str
+        The graph to be deployed in json format output by json graph.
+        The graph can contain operator(tvm_op) that points to the name
+        of PackedFunc in the libmod.
+
+    libmod : tvm.runtime.Module
+        The module of the corresponding function
+
+    device : Device or list of Device
+        The device to deploy the module. It can be local or remote when there
+        is only one Device. Otherwise, the first device in the list will
+        be used as this purpose. All device should be given for heterogeneous
+        execution.
+
+    Returns
+    -------
+    graph_module : GraphModule
+        Runtime graph module that can be used to execute the graph.
+
+    Note
+    ----
+    See also :py:class:`tvm.contrib.graph_executor.GraphModule`
+    for examples to directly construct a GraphModule from an exported
+    relay compiled library.
+    """
+    assert isinstance(model_path, (pathlib.Path, str))
+    loaded_mod = tvm.runtime.load_module(model_path)
+    return AotModule(loaded_mod["default"](device))
 
 class AotModule(object):
     """Wraps the AOT executor runtime.Module.

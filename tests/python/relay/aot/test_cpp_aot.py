@@ -16,6 +16,7 @@
 # under the License.
 """AOT with C++ Runtime Tests"""
 
+import pathlib
 import re
 import textwrap
 
@@ -200,6 +201,93 @@ def test_pass_wrong_device_arg():
         )
     # TODO write asserts for # and type of device.
 
+# @pytest.mark.parametrize("enable_usmp", [True, False])
+# @pytest.mark.parametrize("target_kind", ["c", "llvm"])
+@pytest.mark.parametrize("enable_usmp", [False])
+@pytest.mark.parametrize("target_kind", ["c"])
+def test_aot_debugger(enable_usmp, target_kind):
+    """Tests compilation of convolutions"""
+    relay_model = textwrap.dedent(
+        """\
+        #[version = "0.0.5"]
+        def @main(%data : Tensor[(1, 3, 64, 64), uint8], %weight : Tensor[(3, 3, 5, 5), int8]) {
+            %1 = nn.conv2d(
+                 %data,
+                 %weight,
+                 padding=[2, 2],
+                 channels=3,
+                 kernel_size=[5, 5],
+                 data_layout="NCHW",
+                 kernel_layout="OIHW",
+                 out_dtype="int32");
+            %2 = cast(nn.max_pool2d(%1, pool_size=[3, 3]), dtype="int8");
+            %3 = nn.conv2d(
+                 %2,
+                 %weight,
+                 padding=[2, 2],
+                 channels=3,
+                 kernel_size=[5, 5],
+                 data_layout="NCHW",
+                 kernel_layout="OIHW",
+                 out_dtype="int32");
+            %4 = nn.max_pool2d(%3, pool_size=[3, 3]);
+            %4
+        }
+    """
+    )
+    ir_mod = tvm.parser.fromtext(relay_model)
+
+    main_func = ir_mod["main"]
+    shape_dict = {p.name_hint: p.checked_type.concrete_shape for p in main_func.params}
+    type_dict = {p.name_hint: p.checked_type.dtype for p in main_func.params}
+
+    weight_data = np.ones(shape_dict["weight"]).astype(type_dict["weight"])
+    input_data = np.ones(shape_dict["data"]).astype(type_dict["data"])
+
+    params = {"weight": weight_data}
+    inputs = {"data": input_data}
+    ref_outputs = generate_ref_data(ir_mod, inputs, params)
+
+    with tvm.transform.PassContext(
+        opt_level=3, config={"tir.disable_vectorize": True, "tir.usmp.enable": enable_usmp}
+    ):
+        mod = tvm.relay.build(
+            ir_mod,
+            params=params,
+            target=target_kind,
+            executor=backend.Executor("aot", {"interface-api": "packed"}),
+        )
+
+    # temp_dir = tvm.contrib.utils.TempDirectory()
+    temp_dir = pathlib.Path("/home/mhessar/work/tvm/aot_debugger")
+    import os
+    if temp_dir.exists():
+        for f in os.listdir(temp_dir):
+            path = os.path.join(temp_dir, f)
+            try:
+                import shutil
+                shutil.rmtree(path)
+            except OSError:
+                os.remove(path)
+
+    else:
+        os.mkdir(temp_dir)
+    test_so_path = temp_dir / "test.so"
+
+    tvm.micro.export_model_library_format(mod, temp_dir / "model.tar")
+
+    import tarfile
+    with tarfile.TarFile(temp_dir / "model.tar") as tf:
+        tf.extractall(path=temp_dir)
+
+    import pdb; pdb.set_trace()
+    mod.export_library(test_so_path, cc="gcc", options=["-std=c11"])
+    runner = tvm.runtime.executor.get_aot_executor_debugger(test_so_path, tvm.cpu(0))
+    import pdb; pdb.set_trace()
+
+    runner.set_input(**inputs)
+    runner.run()
+    assert (runner.get_output(0).asnumpy() == list(ref_outputs.values())[0]).all()
 
 if __name__ == "__main__":
     tvm.testing.main()

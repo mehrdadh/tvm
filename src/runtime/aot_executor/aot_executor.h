@@ -53,6 +53,9 @@ class TVM_DLL AotExecutor : public ModuleNode {
 
   void Run();
 
+  int GetModuleFunction(const std::string& func_name);
+  NDArray RunIndividualFunction(const std::string& func_name);
+
   /*!
    * \brief Initialize the AOT executor with metadata, runtime::Module, and device.
    * \param module The module containing the compiled functions for the host

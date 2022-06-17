@@ -24,3 +24,6 @@ NOTE: at present, only AOT Executor is contained here. The others are:
 TODO(areusch): Consolidate these into this module.
 """
 from .aot_executor import AotModule
+from .aot_executor_debugger import AotDebuggerModule
+from .aot_executor import create as get_aot_executor
+from .aot_executor_debugger import create as get_aot_executor_debugger
