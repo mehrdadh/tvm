@@ -56,7 +56,7 @@ def _run_time_check():
     Designed for use as a the ``run_time_check`` argument to
     `tvm.testing.Feature`.
     """
-    if ANDROID_SERIAL_NUMBER not in os.environ:
-        return f"Missing environment variable {ANDROID_SERIAL_NUMBER}."
+    if HEXAGON_TOOLCHAIN not in os.environ:
+        return f"Missing environment variable {HEXAGON_TOOLCHAIN}."
 
     return True

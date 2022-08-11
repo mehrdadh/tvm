@@ -175,18 +175,30 @@ def hexagon_server_process(
             "rpc_server_port": rpc_server_port_for_session,
             "adb_server_socket": adb_server_socket,
         }
-        launcher = HexagonLauncher(serial_number=android_serial_number, rpc_info=rpc_info)
-        try:
-            if not skip_rpc:
+        if not skip_rpc:
+            launcher = HexagonLauncher(serial_number=android_serial_number, rpc_info=rpc_info)
+            try:
                 launcher.start_server()
-            yield launcher
-        finally:
-            if not skip_rpc:
+                yield launcher
+            finally:
                 launcher.stop_server()
+        else:
+            yield None
 
+@pytest.hookimpl(tryfirst=True, hookwrapper=True)
+def pytest_runtest_makereport(item, call):
+    # execute all other hooks to obtain the report object
+    outcome = yield
+    rep = outcome.get_result()
+
+    # set a report attribute for each phase of a call, which can
+    # be "setup", "call", "teardown"
+    # import pdb; pdb.set_trace()
+    setattr(item, "rep_" + rep.when, rep)
 
 @pytest.fixture
 def hexagon_launcher(
+    request,
     hexagon_server_process,
     rpc_server_port,
     tvm_tracker_host,
@@ -195,11 +207,19 @@ def hexagon_launcher(
     android_serial_number,
 ) -> HexagonLauncherRPC:
     """Initials and returns hexagon launcher which reuses RPC info and Android serial number."""
-    if android_serial_number is None:
-        yield None
+    # if android_serial_number is None:
+    #     yield None
 
     if android_serial_number != "simulator":
-        rpc_info = hexagon_server_process._rpc_info
+        if hexagon_server_process:
+            rpc_info = hexagon_server_process._rpc_info
+        else:
+            rpc_info = {
+                "rpc_tracker_host": tvm_tracker_host,
+                "rpc_tracker_port": tvm_tracker_port,
+                # "rpc_server_port": rpc_server_port,
+                "adb_server_socket": adb_server_socket, 
+            }
     else:
         rpc_info = {
             "rpc_tracker_host": tvm_tracker_host,
@@ -216,7 +236,9 @@ def hexagon_launcher(
     finally:
         if android_serial_number == "simulator":
             launcher.stop_server()
-        launcher.cleanup_directory()
+
+        if request.node.rep_call.passed:
+            launcher.cleanup_directory()
 
 
 @pytest.fixture
@@ -275,6 +297,12 @@ def pytest_addoption(parser):
         default=False,
         help="If set true, the RPC server initialization on Android would be skipped",
     )
+    # parser.addoption(
+    #     "--hexagon-debug",
+    #     action="store_true",
+    #     default=False,
+    #     help="If set true, it will keep the hexagon test files.",
+    # )
 
 
 def pytest_generate_tests(metafunc):

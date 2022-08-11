@@ -18,6 +18,7 @@
 
 set -euxo pipefail
 
+
 device_serial="simulator"
 if [ $# -ge 1 ] && [[ "$1" = "--device" ]]; then
     shift 1
@@ -40,7 +41,7 @@ if [[ "${device_serial}" == "simulator" ]]; then
 fi
 
 export ANDROID_SERIAL_NUMBER=${device_serial}
-run_pytest ctypes python-contrib-hexagon tests/python/contrib/test_hexagon
+run_pytest ctypes python-contrib-hexagon tests/python/contrib/test_hexagon --skip-rpc
 
 if [[ "${device_serial}" == "simulator" ]]; then
     kill ${TRACKER_PID}
