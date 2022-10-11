@@ -155,13 +155,13 @@ Array<BufferInfo> ConvertToArrayOfBufferInfo(const Map<BufferInfo, ObjectRef>& b
   return ret;
 }
 
-Map<Stmt, PoolAllocation> AssignStmtPoolAllocations(
+Map<ObjectRef, PoolAllocation> AssignStmtPoolAllocations(
     const Map<BufferInfo, ObjectRef>& buffer_info_to_stmt,
     const Map<BufferInfo, PoolAllocation>& buffer_info_to_pool_allocation) {
-  Map<Stmt, PoolAllocation> ret;
+  Map<ObjectRef, PoolAllocation> ret;
   for (const auto& kv : buffer_info_to_pool_allocation) {
     BufferInfo bi = kv.first;
-    Stmt stmt_ = runtime::Downcast<Stmt>(buffer_info_to_stmt[bi]);
+    ObjectRef stmt_ = buffer_info_to_stmt[bi];
     PoolAllocation pa = kv.second;
     ret.Set(stmt_, pa);
   }

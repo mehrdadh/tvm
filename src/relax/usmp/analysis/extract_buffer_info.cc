@@ -26,6 +26,7 @@
  * conflicts between other tir.allocate nodes.
  */
 #include <tvm/relax/expr.h>
+#include <tvm/relax/utils.h>
 #include <tvm/relay/executor.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/tir/usmp/utils.h>
@@ -36,6 +37,7 @@
 #include "../../../runtime/thread_storage_scope.h"
 #include "tvm/relax/attrs/memory.h"
 #include "tvm/relax/expr_functor.h"
+#include "tvm/relax/usmp/utils.h"
 #include "tvm/tir/builtin.h"
 #include "tvm/tir/function.h"
 #include "tvm/tir/stmt.h"
@@ -623,17 +625,6 @@ void RelaxInfoExtractor::VisitBinding_(const VarBindingNode* binding) {
     }
   }
   ExprVisitor::VisitBinding_(binding);
-}
-
-static Integer CalculateRelaxExtentsSize(const DataType& dtype, const Array<PrimExpr>& extents) {
-  size_t element_size_bytes = dtype.bytes();
-  size_t num_elements = 1;
-  for (const auto& ext : extents) {
-    if (ext->IsInstance<IntImmNode>()) {
-      num_elements *= Downcast<IntImm>(ext)->value;
-    }
-  }
-  return Integer(num_elements * element_size_bytes);
 }
 
 void RelaxInfoExtractor::RecordAllocateNodeInfo(const VarBindingNode* op) {

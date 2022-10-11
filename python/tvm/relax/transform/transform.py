@@ -350,6 +350,9 @@ def AssignPoolInfo() -> tvm.ir.transform.Pass:
     """
     return _ffi_api.AssignPoolInfo()
 
+def ConvertPoolAllocationsToOffsets(pool_allocations, emit_tvmscript_printable: bool = False) -> tvm.ir.transform.Pass:
+    return _ffi_api.ConvertPoolAllocationsToOffsets(pool_allocations, emit_tvmscript_printable)
+
 
 def _wrap_class_function_pass(pass_cls, pass_info):
     """Wrap a python class as function pass."""

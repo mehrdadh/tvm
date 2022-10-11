@@ -290,7 +290,7 @@ Integer CalculateExtentsSize(const AllocateConstNode* op);
  * \param buffer_info_to_stmt the map of BufferInfo objects to Stmt nodes
  * \param buffer_info_to_pool_allocation the map of BufferInfo objects to PoolAllocation objects
  */
-Map<Stmt, PoolAllocation> AssignStmtPoolAllocations(
+Map<ObjectRef, PoolAllocation> AssignStmtPoolAllocations(
     const Map<BufferInfo, ObjectRef>& buffer_info_to_stmt,
     const Map<BufferInfo, PoolAllocation>& buffer_info_to_pool_allocation);
 

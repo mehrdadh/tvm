@@ -82,8 +82,10 @@ IRModule PlanMemory(const IRModule& mod, String algo, bool use_workspace_io,
   Map<BufferInfo, PoolAllocation> buffer_info_pool_allocations =
       algorithm(buffer_info_arr, buffer_info_analysis->memory_pressure);
 
-  Map<Stmt, PoolAllocation> stmt_pool_allocations = AssignStmtPoolAllocations(
+  Map<runtime::ObjectRef, PoolAllocation> pool_allocations = AssignStmtPoolAllocations(
       buffer_info_analysis->buffer_info_stmts, buffer_info_pool_allocations);
+  Map<Stmt, PoolAllocation> stmt_pool_allocations =
+      Map<Stmt, PoolAllocation>(pool_allocations.begin(), pool_allocations.end());
 
   module = transform::ConvertPoolAllocationsToOffsets(stmt_pool_allocations)(module);
   if (use_workspace_io) {
