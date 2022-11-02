@@ -14,10 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Test Resnet50 int8 with MetaSchedule"""
+
 import os
+import tempfile
+
 import numpy as np
 import pytest
-import tempfile
 from typing import Optional
 
 import tvm
@@ -32,14 +35,8 @@ from tvm.tir.schedule import BlockRV, Schedule
 from ..infrastructure import get_hexagon_target
 
 
-executor = relay.backend.Executor("graph", {"link-params": True})
-target = get_hexagon_target("v68")
-target_llvm = tvm.target.Target("llvm")
-model_json = "resnet50_int8.json"
-model_params = "resnet50_int8.params"
-
-
-def tune_vrmpy_auto_tensorize(mod, params, hexagon_launcher):
+def tune_vrmpy_auto_tensorize(mod, params, hexagon_launcher, target, executor):
+    """Tune VRMPY with auto tensorization."""
     sch_rules = [
         schedule_rule.AutoInline(
             into_producer=False,
@@ -137,26 +134,34 @@ def tune_vrmpy_auto_tensorize(mod, params, hexagon_launcher):
 @pytest.mark.skip("End-to-end tuning is skipped on CI.")
 @tvm.testing.requires_hexagon
 def test_resnet50(hexagon_launcher):
+    """Test Resnet50."""
+    model_json = "resnet50_int8.json"
+    executor = relay.backend.Executor("graph", {"link-params": True})
+    target_llvm = tvm.target.Target("llvm")
+    target_hexagon = get_hexagon_target("v68")
+
     if not os.path.exists(model_json):
         pytest.skip(msg="Run python export_models.py first.")
 
-    with open(model_json, "r") as fi:
-        mod = tvm.ir.load_json(fi.read())
+    with open(model_json, "r") as file:
+        mod = tvm.ir.load_json(file.read())
 
-    with open(model_params, "rb") as fi:
-        params = relay.load_param_dict(fi.read())
+    with open("resnet50_int8.params", "rb") as file:
+        params = relay.load_param_dict(file.read())
     inp = np.random.randn(1, 3, 224, 224).astype("float32")
     input_name = "image"
 
     do_tune = True
 
     if do_tune:
-        hexagon_lowered = tune_vrmpy_auto_tensorize(mod, params, hexagon_launcher)
+        hexagon_lowered = tune_vrmpy_auto_tensorize(
+            mod, params, hexagon_launcher, target_hexagon, executor
+        )
     else:
         with tvm.transform.PassContext(opt_level=3):
             hexagon_lowered = relay.build(
                 mod,
-                tvm.target.Target(target, host=target),
+                tvm.target.Target(target_hexagon, host=target_hexagon),
                 params=params,
                 executor=executor,
             )
