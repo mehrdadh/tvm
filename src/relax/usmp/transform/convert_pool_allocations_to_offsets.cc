@@ -241,7 +241,11 @@ PrimFunc TIRPoolAllocationToOffsetConverter::CreatePrimFuncWithPoolParams(
     if (pass_data_.emit_tvmscript_printable_) {
       original_attrs = DictAttrs();
     }
-    PrimFunc ret = PrimFunc(Array<Var>(si.params.begin(), si.params.end()), new_body, original_primfunc->ret_type, si.buffer_map,
+    Array<Var> params;
+    for (BaseExpr base_expr : si.params) {
+      params.push_back(runtime::Downcast<Var>(base_expr));
+    }
+    PrimFunc ret = PrimFunc(params, new_body, original_primfunc->ret_type, si.buffer_map,
                             si.buffer_map, original_attrs);
     if (!pass_data_.emit_tvmscript_printable_) {
       ret = WithAttr(ret, tvm::attr::kPoolArgs, si.allocated_pool_params);
@@ -526,7 +530,11 @@ Expr RelaxPoolAllocationToOffsetConverter::VisitExpr_(const CallNode* op) {
       Array<BaseExpr> base_args = Array<BaseExpr>(op->args.begin(), op->args.end());
       new_args = ReplaceAllocateArgsWithLetArgs(base_args);
     }
-    return Call(op->op, Array<Expr>(new_args.begin(), new_args.end()), op->attrs, op->type_args, op->span);
+    Array<Expr> params;
+    for (BaseExpr base_expr : new_args) {
+      params.push_back(runtime::Downcast<Expr>(base_expr));
+    }
+    return Call(op->op, params, op->attrs, op->type_args, op->span);
   }
   if (op->op->IsInstance<relax::FunctionNode>()) {
     auto func = Downcast<relax::Function>(op->op);
@@ -566,10 +574,12 @@ tvm::usmp::PoolAllocationsToOffsetsPassData::ScopeInfo RelaxPoolAllocationToOffs
     int pool_size = pass_data_.all_pools_sizes_[pool_info];
     String pool_ref_name = pool_info->pool_name + "_" + std::to_string(pass_data_.pool_var_count_++);
     String var_name = pool_ref_name + "_var";
-    DataType elem_dtype = DataType::UInt(8);
+    DataType elem_dtype = DataType::Int(64);
 //    Var buffer_var(var_name, PointerType(PrimType(elem_dtype), "global"));
     IntImm shape_value = IntImm(elem_dtype, pool_size);
-    Var pool_var = Var(var_name, ShapeExpr({shape_value}), PointerType(PrimType(elem_dtype)));
+    Var pool_var = Var(var_name, ShapeExpr({shape_value}),
+                       DynTensorType(1, DataType::UInt(8)));
+//    Var pool_var = Var(var_name, {}, {});
     si.params.push_back(pool_var);
     si.pools_to_params.Set(pool_info, pool_var);
     si.allocated_pool_params.push_back(AllocatedPoolInfo(
@@ -589,28 +599,41 @@ tvm::usmp::PoolAllocationsToOffsetsPassData::ScopeInfo RelaxPoolAllocationToOffs
 }
 
 IRModule RelaxPoolAllocationToOffsetConverter::operator()() {
+  VLOG(0) << "RelaxPoolAllocationToOffsetConverter() BEGIN";
   GlobalVar gv = pass_data_.module_->GetGlobalVar("run_model");
   auto main_func = Downcast<relax::Function>(pass_data_.module_->Lookup(gv));
+  VLOG(0) << "HERE 0";
   ScopeInfo si = UpdateFunctionScopeInfo(main_func);
+  VLOG(0) << "HERE 1";
   pass_data_.scope_stack.push(si);
+  VLOG(0) << "HERE 2";
   Expr main_func_body = this->VisitExpr(main_func->body);
+  VLOG(0) << "HERE 3";
   pass_data_.scope_stack.pop();
+  VLOG(0) << "HERE 4";
   pass_data_.AppdendConstInitializationData(si);
+  VLOG(0) << "HERE 5";
+  Array<Var> params;
+  for (BaseExpr base_expr : si.params) {
+    params.push_back(runtime::Downcast<Var>(base_expr));
+  }
   // We dont need attrs of PrimFunc that might include non printable attrs such as target
   // for unit tests where emit_tvmscript_printable_ is to be used.
   if (!pass_data_.emit_tvmscript_printable_) {
-    main_func = Function(Array<Var>(si.params.begin(), si.params.end()), main_func_body, main_func->ret_type,
+    main_func = Function(params, main_func_body, main_func->ret_type,
                          main_func->ret_shape, main_func->attrs, main_func->span);
     main_func = WithAttr(main_func, tvm::attr::kPoolArgs, si.allocated_pool_params);
   } else {
     main_func =
-        Function(Array<Var>(si.params.begin(), si.params.end()), main_func_body,
+        Function(params, main_func_body,
                  main_func->ret_type, main_func->ret_shape, DictAttrs(), main_func->span);
+    main_func = WithAttr(main_func, tvm::attr::kGlobalSymbol, String("run_model"));
   }
   pass_data_.module_->Update(gv, main_func);
   if (!pass_data_.emit_tvmscript_printable_) {
     return WithAttr(pass_data_.module_, tvm::attr::kPoolArgs, si.allocated_pool_params);
   }
+  VLOG(0) << "RelaxPoolAllocationToOffsetConverter() END";
   return pass_data_.module_;
 }
 

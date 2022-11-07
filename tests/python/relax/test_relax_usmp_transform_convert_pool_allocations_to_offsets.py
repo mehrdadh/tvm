@@ -284,35 +284,29 @@ def test_mobilenet_subgraph():
 
     print(dump_ast(relax_mod["run_model"]))
 
-    print("HERE1")
     relax_mod = _assign_poolinfos_to_allocates_in_irmodule(
         relax_mod, [fast_memory_pool, slow_memory_pool]
     )
-    print("HERE2")
     main_func = relax_mod["run_model"]
-    print("HERE22")
     buffer_analysis = tvm.relax.analysis.extract_buffer_info(main_func, relax_mod)
-    print("HERE3")
     buffer_info_map = buffer_analysis.buffer_info_stmts
-    print("HERE4")
 
     fcreate_array_bi = tvm.get_global_func("tir.usmp.CreateArrayBufferInfo")
-    print("HERE5")
     buffer_info_arr = fcreate_array_bi(buffer_info_map)
     fusmp_algo_greedy_by_size = tvm.get_global_func("tir.usmp.algo.greedy_by_size")
-    print("HERE6")
     buffer_pool_allocations = fusmp_algo_greedy_by_size(
         buffer_info_arr, buffer_analysis.memory_pressure
     )
-    print("HERE7")
     fassign_stmt_pool_allocations = tvm.get_global_func("tir.usmp.AssignStmtPoolAllocations")
-    print("HERE8")
     pool_allocations = fassign_stmt_pool_allocations(buffer_info_map, buffer_pool_allocations)
-    print("HERE9")
+    print("BEFORE ConvertPoolAllocationsToOffsets")
     tir_mod_with_offsets = tvm.relax.transform.ConvertPoolAllocationsToOffsets(
         pool_allocations, emit_tvmscript_printable=True
     )(relax_mod)
-    print("HERE10")
+    print("AFTER ConvertPoolAllocationsToOffsets")
+
+    print(dump_ast(tir_mod_with_offsets["run_model"]))
+    print(tir_mod_with_offsets)
 
     # tir_mod_with_offsets_ref = LinearStructurePlanned
     #

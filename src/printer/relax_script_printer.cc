@@ -31,6 +31,7 @@
 
 #include "doc.h"
 #include "text_printer.h"
+#include "tvm/ir/memory_pools.h"
 
 namespace tvm {
 namespace relax {
@@ -429,6 +430,14 @@ Doc RelaxScriptPrinter::PrintAttr(const ObjectRef& attr) {
   if (attr.defined()) {
     if (const StringObj* str = attr.as<StringObj>()) {
       return Doc::StrLiteral(GetRef<String>(str));
+    } else if (const runtime::ArrayNode* array_node = attr.as<runtime::ArrayNode>()) {
+      if (array_node->size() != 0 && array_node->at(0).as<PoolInfoNode>()) {
+        // TODO(gigiblender): Support printing PoolInfoNodes.
+        // Avoid stack overflow.
+        return Doc::Text("\"XXPoolInfoNodeXX\"");
+      } else {
+        return VisitAttr(attr);
+      }
     } else {
       return VisitAttr(attr);
     }
