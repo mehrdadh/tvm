@@ -350,7 +350,10 @@ def AssignPoolInfo() -> tvm.ir.transform.Pass:
     """
     return _ffi_api.AssignPoolInfo()
 
-def ConvertPoolAllocationsToOffsets(pool_allocations, emit_tvmscript_printable: bool = False) -> tvm.ir.transform.Pass:
+
+def ConvertPoolAllocationsToOffsets(
+    pool_allocations, emit_tvmscript_printable: bool = False
+) -> tvm.ir.transform.Pass:
     return _ffi_api.ConvertPoolAllocationsToOffsets(pool_allocations, emit_tvmscript_printable)
 
 

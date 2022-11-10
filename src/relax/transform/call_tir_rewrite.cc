@@ -108,16 +108,17 @@ class CallTIRMutator : public ExprMutator {
         args.insert(args.end(), outs.begin(), outs.end());
 
         if (call->args.size() == 3) {
-          builder_->Emit(Call(call->args[0], args), "_");
+          builder_->Emit(Call(call->args[0], args, {}, call->type_args, Span()), "_");
         } else {
           // unpack semantics
           args.push_back(call->args[3]);
-          builder_->Emit(Call(call_tir_dyn_op, {call->args[0], Tuple(args)}), "_");
+          builder_->Emit(Call(call_tir_dyn_op, {call->args[0], Tuple(args)}, {}, call->type_args),
+                         "_");
         }
       } else {
         args = outs;
         args.insert(args.begin(), call->args[1]);
-        builder_->Emit(Call(call->args[0], args), "_");
+        builder_->Emit(Call(call->args[0], args, {}, call->type_args, Span()), "_");
       }
 
       if (outs.size() == 1) {

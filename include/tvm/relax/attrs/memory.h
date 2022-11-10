@@ -26,9 +26,9 @@
 
 #include <tvm/ir/attrs.h>
 
-#include "tvm/ir/memory_pools.h"
-
 #include <string>
+
+#include "tvm/ir/memory_pools.h"
 
 namespace tvm {
 namespace relax {

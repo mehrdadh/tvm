@@ -34,6 +34,7 @@
 
 #include <stack>
 
+#include "tvm/relax/attrs/memory.h"
 #include "tvm/relax/expr_functor.h"
 #include "tvm/relax/usmp/utils.h"
 
@@ -56,12 +57,12 @@ class PoolAllocationsToOffsetsPassData {
    * signature is kept while body of the function is mutated
    */
   struct ScopeInfo {
-    // tir::Var or relax::Var
+    // tir::Var or relax::Var.
     Array<BaseExpr> params;
-    // tir::Var or relax::Var
+    // tir::Var or relax::Var.
     Map<PoolInfo, BaseExpr> pools_to_params;
     Array<tir::usmp::AllocatedPoolInfo> allocated_pool_params;
-    // Probably optional. I think it's only used in TIR
+    // Only used in TIR.
     Map<tir::Var, tir::Buffer> buffer_map;
   };
 
@@ -74,26 +75,24 @@ class PoolAllocationsToOffsetsPassData {
 
   /*! \brief The IRModule being constructed/mutated */
   IRModule module_;
-  /*! \brief The input allocate node to PoolAllocation map */
-  // Can be tir::Stmt or Relax::Expr
+  /*! \brief The input allocate node to PoolAllocation map. Can be tir::Stmt or Relax::Expr */
   Map<runtime::ObjectRef, tir::usmp::PoolAllocation> pool_allocations_;
   /*! \brief The set of ordered pools to ensure an unique order of args for functions */
   std::vector<tir::usmp::AllocatedPoolInfo> allocated_pool_ordering_;
   /*! \brief The storage of calculated pool size at init */
   std::unordered_map<PoolInfo, int, ObjectPtrHash, ObjectPtrEqual> all_pools_sizes_;
   /*! \brief After mutation, each allocate buffer is replaced with tir::Var that is let bounded
-   * to position from a pool as designated by a PoolAllocation
+   * to position from a pool as designated by a PoolAllocation. Only used by the TIR visitor.
    */
-   // tir::Var or relax::Var
-  Map<BaseExpr, BaseExpr> allocate_var_to_let_var_;
+  Map<tir::Var, tir::Var> allocate_var_to_let_var_;
   /*! \brief A map from the original buffer object
    *
    * Each key-value pair in this map satisfies
    * ``allocate_buf_to_let_var[key->data] = value->data``.  However,
    * since more than one `tir::Buffer` may use the same Var, they must
    * be tracked separately.
+   * Only used by the TIR visitor.
    */
-   // TODO(gigiblender): Unsure about this one
   Map<tir::Buffer, tir::Buffer> original_buf_to_let_buf_;
 
   Map<String, Bool> signature_has_device_context_;
@@ -105,8 +104,7 @@ class PoolAllocationsToOffsetsPassData {
 
   Map<PoolInfo, Array<ConstantInfo>> pool_initializations_;
 
-  void AppdendConstInitializationData(
-      ScopeInfo si) {
+  void AppdendConstInitializationData(ScopeInfo si) {
     for (tir::usmp::AllocatedPoolInfo api : si.allocated_pool_params) {
       const auto& it = pool_initializations_.find(api->pool_info);
       if (it != pool_initializations_.end()) {
@@ -139,11 +137,13 @@ class TIRPoolAllocationToOffsetConverter : public StmtExprMutator {
   using ScopeInfo = PoolAllocationsToOffsetsPassData::ScopeInfo;
 
  public:
-  TIRPoolAllocationToOffsetConverter(PoolAllocationsToOffsetsPassData& pass_data) : pass_data_(pass_data) {}
+  explicit TIRPoolAllocationToOffsetConverter(const PoolAllocationsToOffsetsPassData& pass_data)
+      : pass_data_(pass_data) {}
 
  private:
   PrimExpr VisitExpr_(const CallNode* op) override;
   Stmt VisitStmt_(const AllocateNode* op) override;
+  PrimExpr VisitExpr_(const VarNode* op) override;
   PrimExpr VisitExpr_(const BufferLoadNode* op) override;
   Stmt VisitStmt_(const BufferStoreNode* op) override;
 
@@ -189,8 +189,8 @@ Optional<Var> TIRPoolAllocationToOffsetConverter::GetResourceHandle(const PrimFu
   return Optional<Var>();
 }
 
-tvm::usmp::PoolAllocationsToOffsetsPassData::ScopeInfo TIRPoolAllocationToOffsetConverter::UpdateFunctionScopeInfo(
-    const PrimFunc& original_func) {
+tvm::usmp::PoolAllocationsToOffsetsPassData::ScopeInfo
+TIRPoolAllocationToOffsetConverter::UpdateFunctionScopeInfo(const PrimFunc& original_func) {
   ScopeInfo si;
 
   Optional<Var> resource_handle = GetResourceHandle(original_func);
@@ -203,7 +203,8 @@ tvm::usmp::PoolAllocationsToOffsetsPassData::ScopeInfo TIRPoolAllocationToOffset
   Map<tir::Var, PoolInfo> ret;
   for (const AllocatedPoolInfo& allocated_pool_info : pass_data_.allocated_pool_ordering_) {
     PoolInfo pool_info = allocated_pool_info->pool_info;
-    String pool_ref_name = pool_info->pool_name + "_" + std::to_string(pass_data_.pool_var_count_++);
+    String pool_ref_name =
+        pool_info->pool_name + "_" + std::to_string(pass_data_.pool_var_count_++);
     String var_name = pool_ref_name + "_var";
     DataType elem_dtype = DataType::UInt(8);
     Var buffer_var(var_name, PointerType(PrimType(elem_dtype), "global"));
@@ -256,8 +257,8 @@ PrimFunc TIRPoolAllocationToOffsetConverter::CreatePrimFuncWithPoolParams(
   return original_primfunc;
 }
 
-Array<PrimExpr> TIRPoolAllocationToOffsetConverter::AppendPoolParamsToArgs(Array<PrimExpr> args,
-                                                                        bool has_device_context) {
+Array<PrimExpr> TIRPoolAllocationToOffsetConverter::AppendPoolParamsToArgs(
+    Array<PrimExpr> args, bool has_device_context) {
   Array<PrimExpr> new_args;
   PrimExpr resource_handle_arg;
   // name, params...params[, context]
@@ -284,9 +285,10 @@ Array<PrimExpr> TIRPoolAllocationToOffsetConverter::ReplaceAllocateArgsWithLetAr
     const Array<PrimExpr>& args) {
   Array<PrimExpr> ret;
   for (const PrimExpr& arg : args) {
-    if (arg->IsInstance<VarNode>() &&
-        pass_data_.allocate_var_to_let_var_.find(arg) != pass_data_.allocate_var_to_let_var_.end()) {
-      ret.push_back(runtime::Downcast<PrimExpr>(pass_data_.allocate_var_to_let_var_[arg]));
+    if (arg->IsInstance<VarNode>() && pass_data_.allocate_var_to_let_var_.find(Downcast<Var>(
+                                          arg)) != pass_data_.allocate_var_to_let_var_.end()) {
+      ret.push_back(
+          runtime::Downcast<PrimExpr>(pass_data_.allocate_var_to_let_var_[Downcast<Var>(arg)]));
     } else {
       ret.push_back(VisitExpr(arg));
     }
@@ -313,7 +315,8 @@ PrimExpr TIRPoolAllocationToOffsetConverter::VisitExpr_(const CallNode* op) {
 
       PrimFunc prim_func = CreatePrimFuncWithPoolParams(func);
       pass_data_.module_->Update(gv, prim_func);
-      new_args = AppendPoolParamsToArgs(op->args, pass_data_.signature_has_device_context_[func_name]);
+      new_args =
+          AppendPoolParamsToArgs(op->args, pass_data_.signature_has_device_context_[func_name]);
       new_args = ReplaceAllocateArgsWithLetArgs(new_args);
     } else {
       new_args = ReplaceAllocateArgsWithLetArgs(op->args);
@@ -333,7 +336,7 @@ PrimExpr TIRPoolAllocationToOffsetConverter::VisitExpr_(const CallNode* op) {
 }
 
 LetStmt TIRPoolAllocationToOffsetConverter::ToLetStmt(const PoolAllocation& pool_allocation,
-                                                   const Var& buffer_var, const Stmt& body) {
+                                                      const Var& buffer_var, const Stmt& body) {
   ScopeInfo scope_info = pass_data_.scope_stack.top();
   Var param = runtime::Downcast<Var>(scope_info.pools_to_params[pool_allocation->pool_info]);
   BufferLoad load_node = BufferLoad(scope_info.buffer_map[param], {pool_allocation->byte_offset});
@@ -362,15 +365,18 @@ Stmt TIRPoolAllocationToOffsetConverter::VisitStmt_(const AllocateNode* op) {
 
 Stmt TIRPoolAllocationToOffsetConverter::VisitStmt_(const AllocateConstNode* op) {
   if (pass_data_.pool_allocations_.count(GetRef<AllocateConst>(op))) {
-    const auto& result = ToLetStmt(pass_data_.pool_allocations_[GetRef<Stmt>(op)], op->buffer_var, op->body);
+    const auto& result =
+        ToLetStmt(pass_data_.pool_allocations_[GetRef<Stmt>(op)], op->buffer_var, op->body);
 
     PoolInfo pool_info = pass_data_.pool_allocations_[GetRef<Stmt>(op)]->pool_info;
-    if (pass_data_.pool_initializations_.find(pool_info) == pass_data_.pool_initializations_.end()) {
+    if (pass_data_.pool_initializations_.find(pool_info) ==
+        pass_data_.pool_initializations_.end()) {
       pass_data_.pool_initializations_.Set(pool_info, {});
     }
 
     auto consts = pass_data_.pool_initializations_[pool_info];
-    consts.push_back({result->var->name_hint, pass_data_.pool_allocations_[GetRef<Stmt>(op)]->byte_offset,
+    consts.push_back({result->var->name_hint,
+                      pass_data_.pool_allocations_[GetRef<Stmt>(op)]->byte_offset,
                       op->data.value()});
 
     pass_data_.pool_initializations_.Set(pool_info, consts);
@@ -399,6 +405,15 @@ PrimExpr TIRPoolAllocationToOffsetConverter::VisitExpr_(const BufferLoadNode* op
   return std::move(load);
 }
 
+PrimExpr TIRPoolAllocationToOffsetConverter::VisitExpr_(const VarNode* op) {
+  auto it = pass_data_.allocate_var_to_let_var_.find(GetRef<Var>(op));
+  if (it != pass_data_.allocate_var_to_let_var_.end()) {
+    return (*it).second;
+  }
+
+  return StmtExprMutator::VisitExpr_(op);
+}
+
 Buffer TIRPoolAllocationToOffsetConverter::GetRemappedBuffer(Buffer original) {
   {
     auto it = pass_data_.original_buf_to_let_buf_.find(original);
@@ -412,10 +427,10 @@ Buffer TIRPoolAllocationToOffsetConverter::GetRemappedBuffer(Buffer original) {
   auto it = pass_data_.allocate_var_to_let_var_.find(original->data);
   if (it != pass_data_.allocate_var_to_let_var_.end()) {
     Var var = runtime::Downcast<Var>((*it).second);
-    remapped = Buffer(var, original->dtype, original->shape, original->strides,
-                      original->elem_offset, original->name, original->data_alignment,
-                      original->offset_factor, original->buffer_type, original->axis_separators,
-                      original->span);
+    remapped =
+        Buffer(var, original->dtype, original->shape, original->strides, original->elem_offset,
+               original->name, original->data_alignment, original->offset_factor,
+               original->buffer_type, original->axis_separators, original->span);
   }
 
   pass_data_.original_buf_to_let_buf_.Set(original, remapped);
@@ -433,7 +448,8 @@ class RelaxPoolAllocationToOffsetConverter : public relax::ExprMutator {
   using ScopeInfo = PoolAllocationsToOffsetsPassData::ScopeInfo;
 
  public:
-  RelaxPoolAllocationToOffsetConverter(PoolAllocationsToOffsetsPassData& pass_data) : pass_data_(pass_data) {}
+  explicit RelaxPoolAllocationToOffsetConverter(const PoolAllocationsToOffsetsPassData& pass_data)
+      : pass_data_(pass_data) {}
 
   IRModule operator()();
 
@@ -441,7 +457,7 @@ class RelaxPoolAllocationToOffsetConverter : public relax::ExprMutator {
   Expr VisitExpr_(const CallNode* op) override;
   void VisitBinding_(const VarBindingNode* binding);
 
-  /*! \brief Each PrimFunc signature needs to be updated
+  /*! \brief Each Relax function signature needs to be updated
    * with pool variables. This is a helper function to
    * capture the updated information to ScopeInfo object.
    */
@@ -449,12 +465,7 @@ class RelaxPoolAllocationToOffsetConverter : public relax::ExprMutator {
   /*! \brief This is a helper to append the pool args to
    * the callsite of the function.
    */
-  Array<BaseExpr> AppendPoolParamsToArgs(Array<Expr> args, bool has_device_context);
-  /*! \brief Some arguments that used to be Allocate nodes
-   * should be replaced by Let nodes in the pass that loads
-   * the space from a pool variable.
-   */
-  Array<BaseExpr> ReplaceAllocateArgsWithLetArgs(const Array<BaseExpr>& args);
+  Array<Expr> AppendPoolParamsToArgs(Array<Expr> args);
 
   // Call to bound var map used to find the PoolAllocations in pool_allocations_.
   Map<tvm::relay::Call, tvm::relax::Var> call_to_bound_var_;
@@ -462,15 +473,8 @@ class RelaxPoolAllocationToOffsetConverter : public relax::ExprMutator {
   PoolAllocationsToOffsetsPassData pass_data_;
 };
 
-Array<BaseExpr> RelaxPoolAllocationToOffsetConverter::AppendPoolParamsToArgs(Array<Expr> args,
-                                                                           bool has_device_context) {
-  Array<BaseExpr> new_args;
-  BaseExpr resource_handle_arg;
-  // name, params...params[, context]
-//  if (has_device_context) {
-//    resource_handle_arg = args.back();
-//    args.pop_back();
-//  }
+Array<Expr> RelaxPoolAllocationToOffsetConverter::AppendPoolParamsToArgs(Array<Expr> args) {
+  Array<Expr> new_args;
   for (const auto& arg : args) {
     new_args.push_back(VisitExpr(arg));
   }
@@ -479,41 +483,33 @@ Array<BaseExpr> RelaxPoolAllocationToOffsetConverter::AppendPoolParamsToArgs(Arr
     Var pool_var = runtime::Downcast<Var>(pools_vars.second);
     new_args.push_back(pool_var);
   }
-//  if (resource_handle_arg.defined()) {
-//    new_args.push_back(resource_handle_arg);
-//  }
   return new_args;
 }
-
-
-Array<BaseExpr> RelaxPoolAllocationToOffsetConverter::ReplaceAllocateArgsWithLetArgs(
-    const Array<BaseExpr>& args) {
-  Array<BaseExpr> ret;
-  for (const BaseExpr& arg : args) {
-    if (arg->IsInstance<VarNode>() &&
-        pass_data_.allocate_var_to_let_var_.find(Downcast<Var>(arg)) != pass_data_.allocate_var_to_let_var_.end()) {
-      ret.push_back(pass_data_.allocate_var_to_let_var_[Downcast<Var>(arg)]);
-    } else {
-      ret.push_back(VisitExpr(Downcast<Expr>(arg)));
-    }
-  }
-  return ret;
-}
-
 
 Expr RelaxPoolAllocationToOffsetConverter::VisitExpr_(const CallNode* op) {
   auto node = GetRef<Call>(op);
   static const Op& alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");
   if (op->op == alloc_tensor_op) {
-    // TODO(gigiblender) Lower alloc_tensor to alloc_tensor_offset.
-    VLOG(0) << "Should replace alloc_tensor call node to call + offset";
+    if (pass_data_.pool_allocations_.count(call_to_bound_var_.Get(node).value())) {
+      auto pool_allocation = pass_data_.pool_allocations_[call_to_bound_var_.Get(node).value()];
+      static const Op& alloc_tensor_storage_op = Op::Get("relax.memory.alloc_tensor");
+      auto attrs = make_object<MemAllocTensorAttrs>();
+      attrs->offset = pool_allocation->byte_offset->value;
+      attrs->dtype = op->attrs.as<AllocTensorAttrs>()->dtype;
+      auto scope_info = pass_data_.scope_stack.top();
+      auto storage = scope_info.pools_to_params[pool_allocation->pool_info];
+      return Call(
+          alloc_tensor_storage_op,
+          {GetRef<Var>(storage.as<VarNode>()), call_to_bound_var_.Get(node).value()->shape()},
+          Attrs(attrs), {});
+    }
     return ExprMutator::VisitExpr_(op);
   }
 
   // Rewrite call to TIR PrimFunc
   if (op->op->IsInstance<ExternFuncNode>()) {
     String func_name = runtime::Downcast<ExternFunc>(op->op)->global_symbol;
-    Array<BaseExpr> new_args;
+    Array<Expr> new_args;
     if (pass_data_.module_->ContainGlobalVar(func_name) &&
         pass_data_.module_->Lookup(func_name)->IsInstance<tir::PrimFuncNode>()) {
       GlobalVar gv = pass_data_.module_->GetGlobalVar(func_name);
@@ -524,17 +520,11 @@ Expr RelaxPoolAllocationToOffsetConverter::VisitExpr_(const CallNode* op) {
       tir::PrimFunc new_prim_func = tir_offset_converter.CreatePrimFuncWithPoolParams(prim_func);
       pass_data_.module_->Update(gv, new_prim_func);
 
-      new_args = AppendPoolParamsToArgs(op->args, false);
-      new_args = ReplaceAllocateArgsWithLetArgs(new_args);
+      new_args = AppendPoolParamsToArgs(op->args);
     } else {
-      Array<BaseExpr> base_args = Array<BaseExpr>(op->args.begin(), op->args.end());
-      new_args = ReplaceAllocateArgsWithLetArgs(base_args);
+      new_args = Array<Expr>(op->args.begin(), op->args.end());
     }
-    Array<Expr> params;
-    for (BaseExpr base_expr : new_args) {
-      params.push_back(runtime::Downcast<Expr>(base_expr));
-    }
-    return Call(op->op, params, op->attrs, op->type_args, op->span);
+    return Call(op->op, new_args, op->attrs, op->type_args, op->span);
   }
   if (op->op->IsInstance<relax::FunctionNode>()) {
     auto func = Downcast<relax::Function>(op->op);
@@ -559,60 +549,37 @@ void RelaxPoolAllocationToOffsetConverter::VisitBinding_(const VarBindingNode* b
   ExprMutator::VisitBinding_(binding);
 }
 
-tvm::usmp::PoolAllocationsToOffsetsPassData::ScopeInfo RelaxPoolAllocationToOffsetConverter::UpdateFunctionScopeInfo(const Function& original_func) {
+tvm::usmp::PoolAllocationsToOffsetsPassData::ScopeInfo
+RelaxPoolAllocationToOffsetConverter::UpdateFunctionScopeInfo(const Function& original_func) {
   ScopeInfo si;
   si.params = Array<BaseExpr>(original_func->params.begin(), original_func->params.end());
-//  if (resource_handle) {
-//    si.params.pop_back();
-//    ICHECK(si.params.size() == original_func->params.size() - 1);
-//  }
-//  si.buffer_map = original_func->buffer_map;
   Map<Var, PoolInfo> ret;
   using AllocatedPoolInfo = tir::usmp::AllocatedPoolInfo;
   for (const AllocatedPoolInfo& allocated_pool_info : pass_data_.allocated_pool_ordering_) {
     PoolInfo pool_info = allocated_pool_info->pool_info;
     int pool_size = pass_data_.all_pools_sizes_[pool_info];
-    String pool_ref_name = pool_info->pool_name + "_" + std::to_string(pass_data_.pool_var_count_++);
+    String pool_ref_name =
+        pool_info->pool_name + "_" + std::to_string(pass_data_.pool_var_count_++);
     String var_name = pool_ref_name + "_var";
     DataType elem_dtype = DataType::Int(64);
-//    Var buffer_var(var_name, PointerType(PrimType(elem_dtype), "global"));
     IntImm shape_value = IntImm(elem_dtype, pool_size);
-    Var pool_var = Var(var_name, ShapeExpr({shape_value}),
-                       DynTensorType(1, DataType::UInt(8)));
-//    Var pool_var = Var(var_name, {}, {});
+    Var pool_var = Var(var_name, ShapeExpr({shape_value}), DynTensorType(1, DataType::UInt(8)));
     si.params.push_back(pool_var);
     si.pools_to_params.Set(pool_info, pool_var);
     si.allocated_pool_params.push_back(AllocatedPoolInfo(
         allocated_pool_info->pool_info, allocated_pool_info->allocated_size, si.params.size() - 1));
-
-//    String buffer_var_name = pool_ref_name + "_buffer_var";
-//    si.buffer_map.Set(pool_var,
-//                      Buffer(buffer_var /* data */, elem_dtype /* dtype */, {pool_size} /* shape */,
-//                             {1} /* strides */, 0 /* elem_offset */, buffer_var_name /* name */,
-//                             16 /* data_alignment */, 1 /* offset_factor */,
-//                             BufferType::kDefault /* buffer-type */));
   }
-//  if (resource_handle) {
-//    si.params.push_back(resource_handle.value());
-//  }
   return si;
 }
 
 IRModule RelaxPoolAllocationToOffsetConverter::operator()() {
-  VLOG(0) << "RelaxPoolAllocationToOffsetConverter() BEGIN";
   GlobalVar gv = pass_data_.module_->GetGlobalVar("run_model");
   auto main_func = Downcast<relax::Function>(pass_data_.module_->Lookup(gv));
-  VLOG(0) << "HERE 0";
   ScopeInfo si = UpdateFunctionScopeInfo(main_func);
-  VLOG(0) << "HERE 1";
   pass_data_.scope_stack.push(si);
-  VLOG(0) << "HERE 2";
   Expr main_func_body = this->VisitExpr(main_func->body);
-  VLOG(0) << "HERE 3";
   pass_data_.scope_stack.pop();
-  VLOG(0) << "HERE 4";
   pass_data_.AppdendConstInitializationData(si);
-  VLOG(0) << "HERE 5";
   Array<Var> params;
   for (BaseExpr base_expr : si.params) {
     params.push_back(runtime::Downcast<Var>(base_expr));
@@ -620,20 +587,18 @@ IRModule RelaxPoolAllocationToOffsetConverter::operator()() {
   // We dont need attrs of PrimFunc that might include non printable attrs such as target
   // for unit tests where emit_tvmscript_printable_ is to be used.
   if (!pass_data_.emit_tvmscript_printable_) {
-    main_func = Function(params, main_func_body, main_func->ret_type,
-                         main_func->ret_shape, main_func->attrs, main_func->span);
+    main_func = Function(params, main_func_body, main_func->ret_type, main_func->ret_shape,
+                         main_func->attrs, main_func->span);
     main_func = WithAttr(main_func, tvm::attr::kPoolArgs, si.allocated_pool_params);
   } else {
-    main_func =
-        Function(params, main_func_body,
-                 main_func->ret_type, main_func->ret_shape, DictAttrs(), main_func->span);
+    main_func = Function(params, main_func_body, main_func->ret_type, main_func->ret_shape,
+                         DictAttrs(), main_func->span);
     main_func = WithAttr(main_func, tvm::attr::kGlobalSymbol, String("run_model"));
   }
   pass_data_.module_->Update(gv, main_func);
   if (!pass_data_.emit_tvmscript_printable_) {
     return WithAttr(pass_data_.module_, tvm::attr::kPoolArgs, si.allocated_pool_params);
   }
-  VLOG(0) << "RelaxPoolAllocationToOffsetConverter() END";
   return pass_data_.module_;
 }
 
@@ -647,7 +612,8 @@ class PoolAllocationToOffsetConverter {
 
  public:
   explicit PoolAllocationToOffsetConverter(
-      const IRModule& module, const Map<runtime::ObjectRef, tir::usmp::PoolAllocation>& pool_allocations,
+      const IRModule& module,
+      const Map<runtime::ObjectRef, tir::usmp::PoolAllocation>& pool_allocations,
       bool emit_tvmscript_printable = false) {
     pass_data_.pool_allocations_ = pool_allocations;
     pass_data_.emit_tvmscript_printable_ = emit_tvmscript_printable;
@@ -661,7 +627,9 @@ class PoolAllocationToOffsetConverter {
         auto dyn_tensor_type = runtime::Downcast<relax::DynTensorType>(var_node->checked_type());
         ICHECK(var_node->shape()->IsInstance<relax::ShapeExprNode>()) << "Expected a ShapeExpr";
         auto shape_expr = runtime::Downcast<relax::ShapeExpr>(var_node->shape());
-        extent_size = relax::usmp::CalculateRelaxExtentsSize(dyn_tensor_type->dtype, shape_expr->values).IntValue();
+        extent_size =
+            relax::usmp::CalculateRelaxExtentsSize(dyn_tensor_type->dtype, shape_expr->values)
+                .IntValue();
       } else if (kv.first->IsInstance<tir::AllocateNode>()) {
         tir::Allocate allocate_node = Downcast<tir::Allocate>(kv.first);
         extent_size = tir::usmp::CalculateExtentsSize(allocate_node.operator->()).IntValue();
@@ -669,7 +637,6 @@ class PoolAllocationToOffsetConverter {
         tir::AllocateConst allocate_const_node = Downcast<tir::AllocateConst>(kv.first);
         extent_size = tir::usmp::CalculateExtentsSize(allocate_const_node.operator->()).IntValue();
       } else {
-        VLOG(0) << "SHOULD NOT REACH HERE";
         ICHECK(false) << "Not supported node type " << kv.first->GetTypeKey();
       }
       PoolAllocation pool_allocation = kv.second;
@@ -691,7 +658,8 @@ class PoolAllocationToOffsetConverter {
       int allocated_size = kv.second;
       pass_data_.allocated_pool_ordering_.push_back(AllocatedPoolInfo(pi, allocated_size));
     }
-    std::sort(pass_data_.allocated_pool_ordering_.begin(), pass_data_.allocated_pool_ordering_.end(),
+    std::sort(pass_data_.allocated_pool_ordering_.begin(),
+              pass_data_.allocated_pool_ordering_.end(),
               [](const AllocatedPoolInfo& lhs, const AllocatedPoolInfo& rhs) {
                 if (lhs->pool_info->pool_name < rhs->pool_info->pool_name) {
                   return true;
@@ -702,13 +670,13 @@ class PoolAllocationToOffsetConverter {
 
   IRModule operator()();
 
-  private:
-   PoolAllocationsToOffsetsPassData pass_data_;
+ private:
+  PoolAllocationsToOffsetsPassData pass_data_;
 };
 
-
 IRModule PoolAllocationToOffsetConverter::operator()() {
-  relax::usmp::RelaxPoolAllocationToOffsetConverter relax_pool_allocation = relax::usmp::RelaxPoolAllocationToOffsetConverter(pass_data_);
+  relax::usmp::RelaxPoolAllocationToOffsetConverter relax_pool_allocation =
+      relax::usmp::RelaxPoolAllocationToOffsetConverter(pass_data_);
   IRModule module = relax_pool_allocation();
   return module;
 }
@@ -716,18 +684,18 @@ IRModule PoolAllocationToOffsetConverter::operator()() {
 namespace transform {
 
 tvm::transform::Pass ConvertPoolAllocationsToOffsets(
-    const Map<runtime::ObjectRef, tir::usmp::PoolAllocation>& pool_allocations, Bool emit_tvmscript_printable) {
+    const Map<runtime::ObjectRef, tir::usmp::PoolAllocation>& pool_allocations,
+    Bool emit_tvmscript_printable) {
   auto pass_func = [=](IRModule m, tvm::transform::PassContext ctx) {
     return Downcast<IRModule>(PoolAllocationToOffsetConverter(
         m, pool_allocations, emit_tvmscript_printable->value != 0)());
   };
-  return tvm::transform::CreateModulePass(pass_func, 0, "relax.usmp.ConvertPoolAllocationsToOffsets",
-                                          {});
+  return tvm::transform::CreateModulePass(pass_func, 0,
+                                          "relax.usmp.ConvertPoolAllocationsToOffsets", {});
 }
 
 TVM_REGISTER_GLOBAL("relax.transform.ConvertPoolAllocationsToOffsets")
     .set_body_typed(ConvertPoolAllocationsToOffsets);
 
 }  // namespace transform
-
 }  // namespace tvm
