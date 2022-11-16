@@ -67,10 +67,11 @@ ExprRV TracedScheduleNode::SampleCategorical(const Array<Integer>& candidates,
 }
 
 Array<ExprRV> TracedScheduleNode::SamplePerfectTile(const LoopRV& loop_rv, int n,
+                                                    int min_innermost_factor,
                                                     int max_innermost_factor,
                                                     Optional<Array<Integer>> decision) {
   Array<ExprRV> results = CreateRV(tir::SamplePerfectTile(
-      &this->rand_state_, this->GetSRef(loop_rv), n, max_innermost_factor, &decision));
+      &this->rand_state_, this->GetSRef(loop_rv), n, min_innermost_factor, max_innermost_factor, &decision));
 
   static const InstructionKind& kind = InstructionKind::Get("SamplePerfectTile");
   trace_->Append(/*inst=*/Instruction(/*kind=*/kind,  //

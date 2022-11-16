@@ -294,14 +294,14 @@ std::vector<int64_t> SamplePerfectTile(support::LinearCongruentialEngine::TRandS
 
 std::vector<int64_t> SamplePerfectTile(support::LinearCongruentialEngine::TRandState* rand_state,
                                        int32_t extent, int32_t n_splits,
-                                       int32_t max_innermost_factor) {
+                                       int32_t min_innermost_factor, int32_t max_innermost_factor) {
   if (max_innermost_factor == -1) {
     return SamplePerfectTile(rand_state, extent, n_splits);
   }
   CHECK_GE(n_splits, 2) << "ValueError: Cannot tile a loop into " << n_splits << " splits";
   while (true) {
     std::vector<int64_t> result = SamplePerfectTile(rand_state, extent, n_splits);
-    if (result.back() <= max_innermost_factor) {
+    if (result.back() <= max_innermost_factor && result.back() >= min_innermost_factor) {
       return result;
     }
   }
@@ -309,7 +309,7 @@ std::vector<int64_t> SamplePerfectTile(support::LinearCongruentialEngine::TRandS
 
 std::vector<int64_t> SamplePerfectTile(
     support::LinearCongruentialEngine::TRandState* rand_state,  //
-    const tir::StmtSRef& loop_sref, int32_t n_splits, int32_t max_innermost_factor,
+    const tir::StmtSRef& loop_sref, int32_t n_splits, int32_t min_innermost_factor, int32_t max_innermost_factor,
     Optional<Array<Integer>>* decision) {
   const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
   const int64_t* extent = GetLoopIntExtent(loop);
@@ -337,7 +337,7 @@ std::vector<int64_t> SamplePerfectTile(
     result[0] = len;
   } else {
     // Case 3. Use fresh new sampling result
-    result = SamplePerfectTile(rand_state, *extent, n_splits, max_innermost_factor);
+    result = SamplePerfectTile(rand_state, *extent, n_splits, min_innermost_factor, max_innermost_factor);
     if (max_innermost_factor != -1) {
       ICHECK_LE(result.back(), max_innermost_factor);
     }

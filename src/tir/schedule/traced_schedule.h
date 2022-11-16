@@ -49,7 +49,7 @@ class TracedScheduleNode : public ConcreteScheduleNode {
   /******** Schedule: Sampling ********/
   ExprRV SampleCategorical(const Array<Integer>& candidates, const Array<FloatImm>& probs,
                            Optional<Integer> decision = NullOpt) final;
-  Array<ExprRV> SamplePerfectTile(const LoopRV& loop_rv, int n, int max_innermost_factor,
+  Array<ExprRV> SamplePerfectTile(const LoopRV& loop_rv, int n, int min_innermost_factor, int max_innermost_factor,
                                   Optional<Array<Integer>> decision = NullOpt) final;
   LoopRV SampleComputeLocation(const BlockRV& block_rv, Optional<Integer> decision = NullOpt) final;
   /******** Schedule: Get blocks & loops ********/
