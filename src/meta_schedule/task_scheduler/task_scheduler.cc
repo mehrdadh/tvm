@@ -34,7 +34,8 @@ TaskRecord::TaskRecord(TuneContext ctx, double task_weight) {
       << "ValueError: Require `context.search_strategy`, but it is not defined";
   TVM_PY_LOG(INFO, ctx->logger) << "\n" << tir::AsTVMScript(ctx->mod);
   ctx->Initialize();
-  n->flop = std::max(1.0, tir::EstimateTIRFlops(ctx->mod.value()));
+  // n->flop = std::max(1.0, tir::EstimateTIRFlops(ctx->mod.value()));
+  n->flop = 1.0;
   this->data_ = std::move(n);
 }
 
