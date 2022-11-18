@@ -360,6 +360,9 @@ def ConvertPoolAllocationsToOffsets(
         pool_allocations, emit_tvmscript_printable, insert_storage_allocations
     )
 
+def ConvertRelaxToDPS() -> tvm.ir.transform.Pass:
+    return _ffi_api.ConvertRelaxToDPS()
+
 
 def _wrap_class_function_pass(pass_cls, pass_info):
     """Wrap a python class as function pass."""
