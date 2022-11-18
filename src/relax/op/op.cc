@@ -250,11 +250,12 @@ RELAY_REGISTER_OP("relax.memory.alloc_storage")
     .set_attr<FInferType>("FInferType", ReturnObjectType);
 
 Expr MakeAllocStorage(Expr size, int64_t virtual_device_index, std::string storage_scope,
-                      DataType dtype) {
+                      DataType dtype, std::string pool_info_name) {
   auto attrs = make_object<MemAllocStorageAttrs>();
   attrs->virtual_device_index = std::move(virtual_device_index);
   attrs->storage_scope = std::move(storage_scope);
   attrs->dtype = std::move(dtype);
+  attrs->pool_info_name = std::move(pool_info_name);
   static const Op& op = Op::Get("relax.memory.alloc_storage");
   return Call(op, {size}, Attrs(attrs), {});
 }

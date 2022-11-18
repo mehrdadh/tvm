@@ -352,9 +352,13 @@ def AssignPoolInfo() -> tvm.ir.transform.Pass:
 
 
 def ConvertPoolAllocationsToOffsets(
-    pool_allocations, emit_tvmscript_printable: bool = False
+    pool_allocations,
+    emit_tvmscript_printable: bool = False,
+    insert_storage_allocations: bool = True,
 ) -> tvm.ir.transform.Pass:
-    return _ffi_api.ConvertPoolAllocationsToOffsets(pool_allocations, emit_tvmscript_printable)
+    return _ffi_api.ConvertPoolAllocationsToOffsets(
+        pool_allocations, emit_tvmscript_printable, insert_storage_allocations
+    )
 
 
 def _wrap_class_function_pass(pass_cls, pass_info):

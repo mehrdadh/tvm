@@ -19,7 +19,9 @@ from . import _ffi_api
 from ...expr import Expr, Call
 
 
-def alloc_storage(size: Expr, virtual_device_index: int, storage_scope: str, dtype: str) -> Call:
+def alloc_storage(
+    size: Expr, virtual_device_index: int, storage_scope: str, dtype: str, pool_info_name: str
+) -> Call:
     """Construct a Call to allocate a storage with specific size, virtual_device_index,
     storage_scope and dtype.
 
@@ -43,7 +45,7 @@ def alloc_storage(size: Expr, virtual_device_index: int, storage_scope: str, dty
     result : Call
         A relax Call, which gets the allocated storage.
     """
-    return _ffi_api.alloc_storage(size, virtual_device_index, storage_scope, dtype)  # type: ignore
+    return _ffi_api.alloc_storage(size, virtual_device_index, storage_scope, dtype, pool_info_name)  # type: ignore
 
 
 def alloc_tensor(storage: Expr, shape: Expr, offset: int, dtype: str) -> Call:

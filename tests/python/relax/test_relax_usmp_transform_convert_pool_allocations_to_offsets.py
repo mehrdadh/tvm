@@ -217,19 +217,19 @@ class LinearStructure:
 @tvm.script.ir_module
 class LinearStructurePlanned:
     @R.function
-    def run_model(input: Tensor((16, 16), "uint8"), fast_memory_0_var: Tensor((200704,), "uint8"), slow_memory_1_var: Tensor((3525910,), "uint8")) -> Tensor(None, "int32", ndim = 2):
+    def run_model(input: Tensor((16, 16), "uint8"), fast_memory_0_pool: Object, slow_memory_1_pool: Object) -> Tensor(None, "int32", ndim = 2):
         # block 0
-        tsid_10: Tensor((1, 1), "int16") = relax.memory.alloc_tensor(fast_memory_0_var, (1, 1), offset=0, dtype="int16", attrs_type_key="relax.attrs.MemAllocTensorAttrs")
-        tsid_11: Tensor((9408, 1), "int16") = relax.memory.alloc_tensor(fast_memory_0_var, (9408, 1), offset=0, dtype="int16", attrs_type_key="relax.attrs.MemAllocTensorAttrs")
-        tsid_12: Tensor((64, 1), "int32") = relax.memory.alloc_tensor(fast_memory_0_var, (64, 1), offset=18816, dtype="int32", attrs_type_key="relax.attrs.MemAllocTensorAttrs")
-        alloc: Tensor((301056, 1), "int32") = relax.memory.alloc_tensor(slow_memory_1_var, (301056, 1), offset=0, dtype="int32", attrs_type_key="relax.attrs.MemAllocTensorAttrs")
-        _: Object = R.call_packed("tvmgen_default_fused_cast_subtract", input, tsid_10, alloc, fast_memory_0_var, slow_memory_1_var, type_args=Tensor(ndim=2, dtype="int32"))
+        tsid_10: Tensor((1, 1), "int16") = relax.memory.alloc_tensor(fast_memory_0_pool, (1, 1), offset=0, dtype="int16", attrs_type_key="relax.attrs.MemAllocTensorAttrs")
+        tsid_11: Tensor((9408, 1), "int16") = relax.memory.alloc_tensor(fast_memory_0_pool, (9408, 1), offset=0, dtype="int16", attrs_type_key="relax.attrs.MemAllocTensorAttrs")
+        tsid_12: Tensor((64, 1), "int32") = relax.memory.alloc_tensor(fast_memory_0_pool, (64, 1), offset=18816, dtype="int32", attrs_type_key="relax.attrs.MemAllocTensorAttrs")
+        alloc: Tensor((301056, 1), "int32") = relax.memory.alloc_tensor(slow_memory_1_pool, (301056, 1), offset=0, dtype="int32", attrs_type_key="relax.attrs.MemAllocTensorAttrs")
+        _: Object = R.call_packed("tvmgen_default_fused_cast_subtract", input, tsid_10, alloc, fast_memory_0_pool, slow_memory_1_pool, type_args=Tensor(ndim=2, dtype="int32"))
         lv0: Tensor((301056, 1), "int32") = alloc
-        alloc1: Tensor((802816, 1), "int32") = relax.memory.alloc_tensor(slow_memory_1_var, (802816, 1), offset=0, dtype="int32", attrs_type_key="relax.attrs.MemAllocTensorAttrs")
-        _1: Object = R.call_packed("tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_clip_cast", lv0, tsid_11, tsid_12, alloc1, fast_memory_0_var, slow_memory_1_var, type_args=Tensor(ndim=2, dtype="int32"))
+        alloc1: Tensor((802816, 1), "int32") = relax.memory.alloc_tensor(slow_memory_1_pool, (802816, 1), offset=0, dtype="int32", attrs_type_key="relax.attrs.MemAllocTensorAttrs")
+        _1: Object = R.call_packed("tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_clip_cast", lv0, tsid_11, tsid_12, alloc1, fast_memory_0_pool, slow_memory_1_pool, type_args=Tensor(ndim=2, dtype="int32"))
         lv1: Tensor((802816, 1), "int32") = alloc1
-        alloc2: Tensor((16, 16), "int32") = relax.memory.alloc_tensor(slow_memory_1_var, (16, 16), offset=0, dtype="int32", attrs_type_key="relax.attrs.MemAllocTensorAttrs")
-        _2: Object = R.call_packed("tvmgen_default_fused_nn_max_pool2d_cast", lv1, alloc2, fast_memory_0_var, slow_memory_1_var, type_args=Tensor(ndim=2, dtype="int32"))
+        alloc2: Tensor((16, 16), "int32") = relax.memory.alloc_tensor(slow_memory_1_pool, (16, 16), offset=0, dtype="int32", attrs_type_key="relax.attrs.MemAllocTensorAttrs")
+        _2: Object = R.call_packed("tvmgen_default_fused_nn_max_pool2d_cast", lv1, alloc2, fast_memory_0_pool, slow_memory_1_pool, type_args=Tensor(ndim=2, dtype="int32"))
         output: Tensor((16, 16), "int32") = alloc2
         return output
 
@@ -335,7 +335,7 @@ def test_mobilenet_subgraph():
     fassign_stmt_pool_allocations = tvm.get_global_func("tir.usmp.AssignStmtPoolAllocations")
     pool_allocations = fassign_stmt_pool_allocations(buffer_info_map, buffer_pool_allocations)
     tir_mod_with_offsets = tvm.relax.transform.ConvertPoolAllocationsToOffsets(
-        pool_allocations, emit_tvmscript_printable=True
+        pool_allocations, emit_tvmscript_printable=True, insert_storage_allocations=False
     )(relax_mod)
 
     tir_mod_with_offsets_ref = LinearStructurePlanned
@@ -494,14 +494,14 @@ class ResnetStructure:
 @tvm.script.ir_module
 class ResnetStructurePlanned:
     @T.prim_func
-    def tvmgen_default_fused_cast_subtract_fixed_point_multiply_add_clip_cast_cast(placeholder: T.handle, placeholder_1: T.handle, T_cast: T.handle, global_workspace_1_var: T.Ptr[T.uint8]) -> None:
+    def tvmgen_default_fused_cast_subtract_fixed_point_multiply_add_clip_cast_cast(placeholder: T.handle, placeholder_1: T.handle, T_cast: T.handle, global_workspace_1_pool: T.Ptr[T.uint8]) -> None:
         placeholder_2 = T.match_buffer(placeholder, [360000], dtype="uint8")
         T.preflattened_buffer(placeholder_2, [360000], dtype="uint8")
         placeholder_3 = T.match_buffer(placeholder_1, [64], dtype="int32")
         T.preflattened_buffer(placeholder_3, [64], dtype="int32")
         T_cast_1 = T.match_buffer(T_cast, [215], dtype="int16")
         T.preflattened_buffer(T_cast_1, [215], dtype="int16")
-        global_workspace_1_buffer_var = T.match_buffer(global_workspace_1_var, [7954048], dtype="uint8", strides=[1], elem_offset=0, align=16)
+        global_workspace_1_buffer_var = T.match_buffer(global_workspace_1_pool, [7954048], dtype="uint8", strides=[1], elem_offset=0, align=16)
         T.preflattened_buffer(global_workspace_1_buffer_var, [7954048], dtype="uint8", strides=[1], elem_offset=0, align=16)
         # body
         for ax0_ax1_fused, ax2, ax3_outer, ax3_inner in T.grid(75, 75, 4, 16):
@@ -620,31 +620,31 @@ class ResnetStructurePlanned:
                         T_cast_5[ax0_ax1_fused_ax2_fused_1 * 64 + ax3_inner_2] = T.cast(T.cast(T.max(T.min(T.q_multiply_shift(Conv2dOutput_1_let[ax3_inner_2] + placeholder_15[ax3_inner_2], 1608879842, 31, -7, dtype="int32"), 255), 0), "uint8"), "int16")
 
     @R.function
-    def run_model(input: Tensor((16, 16), "uint8"), global_workspace_0_var: Tensor((7954048,), "uint8")) -> Tensor(None, "int32", ndim=2):
+    def run_model(input: Tensor((16, 16), "uint8"), global_workspace_0_pool: Object) -> Tensor(None, "int32", ndim=2):
         # block 0
-        param_p0: Tensor((64, 1), "int32") = relax.memory.alloc_tensor(global_workspace_0_var, (64, 1), offset=6480000, dtype="int32", attrs_type_key="relax.attrs.MemAllocTensorAttrs")
-        param_p3: Tensor((4096, 1), "int16") = relax.memory.alloc_tensor(global_workspace_0_var, (4096, 1), offset=7920000, dtype="int16", attrs_type_key="relax.attrs.MemAllocTensorAttrs")
-        param_p4: Tensor((64, 1), "int32") = relax.memory.alloc_tensor(global_workspace_0_var, (64, 1), offset=7928192, dtype="int32", attrs_type_key="relax.attrs.MemAllocTensorAttrs")
-        param_p5: Tensor((36864, 1), "int16") = relax.memory.alloc_tensor(global_workspace_0_var, (36864, 1), offset=7200000, dtype="int16", attrs_type_key="relax.attrs.MemAllocTensorAttrs")
-        param_p6: Tensor((64, 1), "int32") = relax.memory.alloc_tensor(global_workspace_0_var, (64, 1), offset=7273728, dtype="int32", attrs_type_key="relax.attrs.MemAllocTensorAttrs")
-        param_p7: Tensor((16384, 1), "int16") = relax.memory.alloc_tensor(global_workspace_0_var, (16384, 1), offset=7920000, dtype="int16", attrs_type_key="relax.attrs.MemAllocTensorAttrs")
-        param_p8: Tensor((256, 1), "int32") = relax.memory.alloc_tensor(global_workspace_0_var, (256, 1), offset=7952768, dtype="int32", attrs_type_key="relax.attrs.MemAllocTensorAttrs")
-        param_p1: Tensor((16384, 1), "int16") = relax.memory.alloc_tensor(global_workspace_0_var, (16384, 1), offset=7200000, dtype="int16", attrs_type_key="relax.attrs.MemAllocTensorAttrs")
-        param_p2: Tensor((256, 1), "int32") = relax.memory.alloc_tensor(global_workspace_0_var, (256, 1), offset=7232768, dtype="int32", attrs_type_key="relax.attrs.MemAllocTensorAttrs")
-        alloc: Tensor((720000, 1), "int8") = relax.memory.alloc_tensor(global_workspace_0_var, (720000, 1), offset=5760000, dtype="int8", attrs_type_key="relax.attrs.MemAllocTensorAttrs")
-        _: Tensor(_, "int8", ndim = 2) = R.call_packed("tvmgen_default_fused_cast_subtract_fixed_point_multiply_add_clip_cast_cast", input, param_p0, alloc, global_workspace_0_var, type_args=(Tensor(ndim=2, dtype="int8")))
+        param_p0: Tensor((64, 1), "int32") = relax.memory.alloc_tensor(global_workspace_0_pool, (64, 1), offset=6480000, dtype="int32", attrs_type_key="relax.attrs.MemAllocTensorAttrs")
+        param_p3: Tensor((4096, 1), "int16") = relax.memory.alloc_tensor(global_workspace_0_pool, (4096, 1), offset=7920000, dtype="int16", attrs_type_key="relax.attrs.MemAllocTensorAttrs")
+        param_p4: Tensor((64, 1), "int32") = relax.memory.alloc_tensor(global_workspace_0_pool, (64, 1), offset=7928192, dtype="int32", attrs_type_key="relax.attrs.MemAllocTensorAttrs")
+        param_p5: Tensor((36864, 1), "int16") = relax.memory.alloc_tensor(global_workspace_0_pool, (36864, 1), offset=7200000, dtype="int16", attrs_type_key="relax.attrs.MemAllocTensorAttrs")
+        param_p6: Tensor((64, 1), "int32") = relax.memory.alloc_tensor(global_workspace_0_pool, (64, 1), offset=7273728, dtype="int32", attrs_type_key="relax.attrs.MemAllocTensorAttrs")
+        param_p7: Tensor((16384, 1), "int16") = relax.memory.alloc_tensor(global_workspace_0_pool, (16384, 1), offset=7920000, dtype="int16", attrs_type_key="relax.attrs.MemAllocTensorAttrs")
+        param_p8: Tensor((256, 1), "int32") = relax.memory.alloc_tensor(global_workspace_0_pool, (256, 1), offset=7952768, dtype="int32", attrs_type_key="relax.attrs.MemAllocTensorAttrs")
+        param_p1: Tensor((16384, 1), "int16") = relax.memory.alloc_tensor(global_workspace_0_pool, (16384, 1), offset=7200000, dtype="int16", attrs_type_key="relax.attrs.MemAllocTensorAttrs")
+        param_p2: Tensor((256, 1), "int32") = relax.memory.alloc_tensor(global_workspace_0_pool, (256, 1), offset=7232768, dtype="int32", attrs_type_key="relax.attrs.MemAllocTensorAttrs")
+        alloc: Tensor((720000, 1), "int8") = relax.memory.alloc_tensor(global_workspace_0_pool, (720000, 1), offset=5760000, dtype="int8", attrs_type_key="relax.attrs.MemAllocTensorAttrs")
+        _: Tensor(_, "int8", ndim = 2) = R.call_packed("tvmgen_default_fused_cast_subtract_fixed_point_multiply_add_clip_cast_cast", input, param_p0, alloc, global_workspace_0_pool, type_args=(Tensor(ndim=2, dtype="int8")))
         sid_2: Tensor((720000, 1), "int8") = alloc
-        alloc1: Tensor((720000, 1), "int8") = relax.memory.alloc_tensor(global_workspace_0_var, (720000, 1), offset=6480000, dtype="int8", attrs_type_key="relax.attrs.MemAllocTensorAttrs")
-        _1: Tensor(_, "int8", ndim = 2) = R.call_packed("tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_clip_cast_cast", sid_2, param_p3, param_p4, alloc1, global_workspace_0_var, type_args=(Tensor(ndim=2, dtype="int8")))
+        alloc1: Tensor((720000, 1), "int8") = relax.memory.alloc_tensor(global_workspace_0_pool, (720000, 1), offset=6480000, dtype="int8", attrs_type_key="relax.attrs.MemAllocTensorAttrs")
+        _1: Tensor(_, "int8", ndim = 2) = R.call_packed("tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_clip_cast_cast", sid_2, param_p3, param_p4, alloc1, global_workspace_0_pool, type_args=(Tensor(ndim=2, dtype="int8")))
         sid_8: Tensor((720000, 1), "int8") = alloc1
-        alloc2: Tensor((720000, 1), "int8") = relax.memory.alloc_tensor(global_workspace_0_var, (720000, 1), offset=6480000, dtype="int8", attrs_type_key="relax.attrs.MemAllocTensorAttrs")
-        _2: Tensor(_, "int8", ndim = 2) = R.call_packed("tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_clip_cast_cast_1", sid_8, param_p5, param_p6, alloc2, global_workspace_0_var, type_args=(Tensor(ndim=2, dtype="int8")))
+        alloc2: Tensor((720000, 1), "int8") = relax.memory.alloc_tensor(global_workspace_0_pool, (720000, 1), offset=6480000, dtype="int8", attrs_type_key="relax.attrs.MemAllocTensorAttrs")
+        _2: Tensor(_, "int8", ndim = 2) = R.call_packed("tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_clip_cast_cast_1", sid_8, param_p5, param_p6, alloc2, global_workspace_0_pool, type_args=(Tensor(ndim=2, dtype="int8")))
         sid_7: Tensor((720000, 1), "int8") = alloc2
-        alloc3: Tensor((5760000, 1), "int8") = relax.memory.alloc_tensor(global_workspace_0_var, (5760000, 1), offset=0, dtype="int8", attrs_type_key="relax.attrs.MemAllocTensorAttrs")
-        _3: Tensor(_, "int8", ndim = 2) = R.call_packed("tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_add_clip_cast_cast_subtract_fixed_point_15934180698220515269_", sid_7, param_p7, param_p8, alloc3, global_workspace_0_var, type_args=(Tensor(ndim=2, dtype="int8")))
+        alloc3: Tensor((5760000, 1), "int8") = relax.memory.alloc_tensor(global_workspace_0_pool, (5760000, 1), offset=0, dtype="int8", attrs_type_key="relax.attrs.MemAllocTensorAttrs")
+        _3: Tensor(_, "int8", ndim = 2) = R.call_packed("tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_add_clip_cast_cast_subtract_fixed_point_15934180698220515269_", sid_7, param_p7, param_p8, alloc3, global_workspace_0_pool, type_args=(Tensor(ndim=2, dtype="int8")))
         sid_6: Tensor((5760000, 1), "int8") = alloc3
-        alloc4: Tensor((16, 16), "int32") = relax.memory.alloc_tensor(global_workspace_0_var, (16, 16), offset=7233792, dtype="int32", attrs_type_key="relax.attrs.MemAllocTensorAttrs")
-        _4: Tensor(_, "int32", ndim = 2) = R.call_packed("tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_add_clip_cast_cast_subtract_fixed_point_4200876283395191415_", sid_2, param_p1, param_p2, sid_6, alloc4, global_workspace_0_var, type_args=(Tensor(ndim=2, dtype="int32")))
+        alloc4: Tensor((16, 16), "int32") = relax.memory.alloc_tensor(global_workspace_0_pool, (16, 16), offset=7233792, dtype="int32", attrs_type_key="relax.attrs.MemAllocTensorAttrs")
+        _4: Tensor(_, "int32", ndim = 2) = R.call_packed("tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_add_clip_cast_cast_subtract_fixed_point_4200876283395191415_", sid_2, param_p1, param_p2, sid_6, alloc4, global_workspace_0_pool, type_args=(Tensor(ndim=2, dtype="int32")))
         output: Tensor((16, 16), "int32") = alloc4
         return output
 # fmt: on
@@ -677,7 +677,7 @@ def test_resnet_subgraph():
     fassign_stmt_pool_allocations = tvm.get_global_func("tir.usmp.AssignStmtPoolAllocations")
     pool_allocations = fassign_stmt_pool_allocations(buffer_info_map, buffer_pool_allocations)
     tir_mod_with_offsets = tvm.relax.transform.ConvertPoolAllocationsToOffsets(
-        pool_allocations, emit_tvmscript_printable=True
+        pool_allocations, emit_tvmscript_printable=True, insert_storage_allocations=False
     )(relax_mod)
 
     tir_mod_with_offsets_ref = ResnetStructurePlanned
@@ -719,7 +719,7 @@ class TensorIntrinStructure:
 @tvm.script.ir_module
 class TensorIntrinStructurePlanned:
     @T.prim_func
-    def tensor_intrin_primfunc(output: T.handle, global_workspace_1_var: T.Ptr[T.uint8]) -> None:
+    def tensor_intrin_primfunc(output: T.handle, global_workspace_1_pool: T.Ptr[T.uint8]) -> None:
         output_placeholder = T.match_buffer(
             output, [1], dtype="int32", elem_offset=0, align=64, offset_factor=1
         )
@@ -727,7 +727,7 @@ class TensorIntrinStructurePlanned:
             output_placeholder, [1], dtype="int32", elem_offset=0, align=64, offset_factor=1
         )
         global_workspace_1_buffer_var = T.match_buffer(
-            global_workspace_1_var, [40], dtype="uint8", strides=[1], elem_offset=0, align=16
+            global_workspace_1_pool, [40], dtype="uint8", strides=[1], elem_offset=0, align=16
         )
         T.preflattened_buffer(
             global_workspace_1_buffer_var, [40], dtype="uint8", strides=[1], elem_offset=0, align=16
@@ -747,11 +747,11 @@ class TensorIntrinStructurePlanned:
 
     @R.function
     def run_model(
-        input: Tensor((1, 1), "uint8"), global_workspace_0_var: Tensor((40,), "uint8")
+        input: Tensor((1, 1), "uint8"), global_workspace_0_pool: Object
     ) -> Tensor(None, "int8", ndim=2):
         # block 0
         alloc: Tensor((1, 1), "int32") = relax.memory.alloc_tensor(
-            global_workspace_0_var,
+            global_workspace_0_pool,
             (1, 1),
             offset=0,
             dtype="int32",
@@ -761,12 +761,12 @@ class TensorIntrinStructurePlanned:
             "tensor_intrin_primfunc",
             (),
             alloc,
-            global_workspace_0_var,
+            global_workspace_0_pool,
             type_args=(Tensor(ndim=2, dtype="int32")),
         )
         _1: Tensor((1, 1), "int32") = alloc
         output: Tensor((1, 1), "int8") = relax.memory.alloc_tensor(
-            global_workspace_0_var,
+            global_workspace_0_pool,
             (1, 1),
             offset=0,
             dtype="int8",
@@ -802,7 +802,7 @@ def test_tensor_intrin():
     fassign_stmt_pool_allocations = tvm.get_global_func("tir.usmp.AssignStmtPoolAllocations")
     pool_allocations = fassign_stmt_pool_allocations(buffer_info_map, buffer_pool_allocations)
     tir_mod_with_offsets = tvm.relax.transform.ConvertPoolAllocationsToOffsets(
-        pool_allocations, emit_tvmscript_printable=True
+        pool_allocations, emit_tvmscript_printable=True, insert_storage_allocations=False
     )(relax_mod)
 
     tir_mod_with_offsets_ref = TensorIntrinStructurePlanned
@@ -811,6 +811,28 @@ def test_tensor_intrin():
     for gv, ref_func in tir_mod_with_offsets_ref.functions.items():
         actual_func = tir_mod_with_offsets[gv.name_hint]
         tvm.ir.assert_structural_equal(actual_func, ref_func)
+
+
+# @tvm.script.ir_module
+# class DummyClass:
+
+# @R.function
+# def main(x: Tensor((5, 7), "float32"), output_1: Tensor(...)):
+#     storage: Object = relax.memory.alloc_storage(relax.const(35))
+#     alloc = output_1
+#     _ = relax.call_packed("test_identity", x, alloc, type_args=Tensor(ndim=2, dtype="int32"))
+#     output = alloc
+# return output
+# return relax.const(0)
+
+# @R.function
+# def main(x: Tensor((5, 7), "int32")):
+#     return relax.const(0)
+
+# def test_dummy_test():
+#     test = DummyClass
+#     print(dump_ast(DummyClass["main"]))
+#     print(test)
 
 
 if __name__ == "__main__":

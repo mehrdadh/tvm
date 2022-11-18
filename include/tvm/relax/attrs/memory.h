@@ -40,6 +40,7 @@ struct MemAllocStorageAttrs : public tvm::AttrsNode<MemAllocStorageAttrs> {
   int64_t virtual_device_index;
   std::string storage_scope;
   DataType dtype;
+  std::string pool_info_name;
 
   TVM_DECLARE_ATTRS(MemAllocStorageAttrs, "relax.attrs.MemAllocStorageAttrs") {
     TVM_ATTR_FIELD(virtual_device_index)
@@ -53,6 +54,9 @@ struct MemAllocStorageAttrs : public tvm::AttrsNode<MemAllocStorageAttrs> {
     TVM_ATTR_FIELD(dtype)
         .describe("The dtype of the tensor to allocate.")
         .set_default(DataType::Float(32, 1));
+    TVM_ATTR_FIELD(pool_info_name)
+        .describe("The optional pool info name from where this storage is allocated.")
+        .set_default("");
   }
 };
 

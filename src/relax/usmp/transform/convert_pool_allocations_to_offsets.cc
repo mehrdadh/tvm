@@ -37,6 +37,7 @@
 #include "tvm/relax/attrs/memory.h"
 #include "tvm/relax/expr_functor.h"
 #include "tvm/relax/usmp/utils.h"
+#include "tvm/tir/usmp/utils.h"
 
 namespace tvm {
 
@@ -46,7 +47,8 @@ class TIRPoolAllocationToOffsetConverter;
 
 namespace relax::usmp {
 class RelaxPoolAllocationToOffsetConverter;
-}
+class RelaxPoolAllocationInserter;
+}  // namespace relax::usmp
 
 class PoolAllocationToOffsetConverter;
 
@@ -60,8 +62,9 @@ class PoolAllocationsToOffsetsPassData {
     // tir::Var or relax::Var.
     Array<BaseExpr> params;
     // tir::Var or relax::Var.
-    Map<PoolInfo, BaseExpr> pools_to_params;
-    Array<tir::usmp::AllocatedPoolInfo> allocated_pool_params;
+    // Can point to either a tir parameter or a relax var bound to a relax.memory.alloc_storage
+    Map<PoolInfo, BaseExpr> pools_to_var;
+    Array<tir::usmp::AllocatedPoolInfo> allocated_pools;
     // Only used in TIR.
     Map<tir::Var, tir::Buffer> buffer_map;
   };
@@ -100,12 +103,16 @@ class PoolAllocationsToOffsetsPassData {
   int pool_var_count_ = 0;
   /*! \brief This toggles to remove non tvmscript printable items for IRModule for unit tests */
   bool emit_tvmscript_printable_ = false;
+
+  /*! \brief This controls if pool vars are passed as parameters or allocated with alloc_storage */
+  bool insert_storage_allocations_ = true;
+
   std::unordered_set<BaseFunc, ObjectPtrHash, ObjectPtrEqual> visited_funcs;
 
   Map<PoolInfo, Array<ConstantInfo>> pool_initializations_;
 
   void AppdendConstInitializationData(ScopeInfo si) {
-    for (tir::usmp::AllocatedPoolInfo api : si.allocated_pool_params) {
+    for (tir::usmp::AllocatedPoolInfo api : si.allocated_pools) {
       const auto& it = pool_initializations_.find(api->pool_info);
       if (it != pool_initializations_.end()) {
         auto* pi = const_cast<ConstantPoolInfoNode*>(api->pool_info.as<ConstantPoolInfoNode>());
@@ -117,6 +124,19 @@ class PoolAllocationsToOffsetsPassData {
   friend class tvm::PoolAllocationToOffsetConverter;
   friend class tir::usmp::TIRPoolAllocationToOffsetConverter;
   friend class relax::usmp::RelaxPoolAllocationToOffsetConverter;
+  friend class relax::usmp::RelaxPoolAllocationInserter;
+};
+
+class PoolAllocationInserterPassData {
+ public:
+  explicit PoolAllocationInserterPassData(
+      const Array<tir::usmp::AllocatedPoolInfo>& allocated_pools)
+      : allocated_pools_(allocated_pools) {}
+
+  Array<tir::usmp::AllocatedPoolInfo> allocated_pools_;
+
+  friend class relax::usmp::RelaxPoolAllocationToOffsetConverter;
+  friend class relax::usmp::RelaxPoolAllocationInserter;
 };
 
 }  // namespace usmp
@@ -205,13 +225,13 @@ TIRPoolAllocationToOffsetConverter::UpdateFunctionScopeInfo(const PrimFunc& orig
     PoolInfo pool_info = allocated_pool_info->pool_info;
     String pool_ref_name =
         pool_info->pool_name + "_" + std::to_string(pass_data_.pool_var_count_++);
-    String var_name = pool_ref_name + "_var";
+    String var_name = pool_ref_name + "_pool";
     DataType elem_dtype = DataType::UInt(8);
     Var buffer_var(var_name, PointerType(PrimType(elem_dtype), "global"));
     Var pool_var = Var(var_name, PointerType(PrimType(elem_dtype), "global"));
     si.params.push_back(pool_var);
-    si.pools_to_params.Set(pool_info, pool_var);
-    si.allocated_pool_params.push_back(AllocatedPoolInfo(
+    si.pools_to_var.Set(pool_info, pool_var);
+    si.allocated_pools.push_back(AllocatedPoolInfo(
         allocated_pool_info->pool_info, allocated_pool_info->allocated_size, si.params.size() - 1));
 
     int pool_size = pass_data_.all_pools_sizes_[pool_info];
@@ -249,7 +269,7 @@ PrimFunc TIRPoolAllocationToOffsetConverter::CreatePrimFuncWithPoolParams(
     PrimFunc ret = PrimFunc(params, new_body, original_primfunc->ret_type, si.buffer_map,
                             si.buffer_map, original_attrs);
     if (!pass_data_.emit_tvmscript_printable_) {
-      ret = WithAttr(ret, tvm::attr::kPoolArgs, si.allocated_pool_params);
+      ret = WithAttr(ret, tvm::attr::kPoolArgs, si.allocated_pools);
     }
     pass_data_.visited_funcs.insert(ret);
     return ret;
@@ -270,7 +290,7 @@ Array<PrimExpr> TIRPoolAllocationToOffsetConverter::AppendPoolParamsToArgs(
     new_args.push_back(VisitExpr(arg));
   }
   ScopeInfo top_scope = pass_data_.scope_stack.top();
-  for (const auto& pools_vars : top_scope.pools_to_params) {
+  for (const auto& pools_vars : top_scope.pools_to_var) {
     Var pool_var = runtime::Downcast<Var>(pools_vars.second);
     Buffer buffer_var = top_scope.buffer_map[pool_var];
     new_args.push_back(buffer_var->data);
@@ -338,7 +358,7 @@ PrimExpr TIRPoolAllocationToOffsetConverter::VisitExpr_(const CallNode* op) {
 LetStmt TIRPoolAllocationToOffsetConverter::ToLetStmt(const PoolAllocation& pool_allocation,
                                                       const Var& buffer_var, const Stmt& body) {
   ScopeInfo scope_info = pass_data_.scope_stack.top();
-  Var param = runtime::Downcast<Var>(scope_info.pools_to_params[pool_allocation->pool_info]);
+  Var param = runtime::Downcast<Var>(scope_info.pools_to_var[pool_allocation->pool_info]);
   BufferLoad load_node = BufferLoad(scope_info.buffer_map[param], {pool_allocation->byte_offset});
   Call address_of_load = Call(DataType::Handle(), builtin::address_of(), {load_node});
 
@@ -451,7 +471,7 @@ class RelaxPoolAllocationToOffsetConverter : public relax::ExprMutator {
   explicit RelaxPoolAllocationToOffsetConverter(const PoolAllocationsToOffsetsPassData& pass_data)
       : pass_data_(pass_data) {}
 
-  IRModule operator()();
+  std::pair<IRModule, tvm::usmp::PoolAllocationInserterPassData> operator()();
 
  private:
   Expr VisitExpr_(const CallNode* op) override;
@@ -479,7 +499,7 @@ Array<Expr> RelaxPoolAllocationToOffsetConverter::AppendPoolParamsToArgs(Array<E
     new_args.push_back(VisitExpr(arg));
   }
   ScopeInfo top_scope = pass_data_.scope_stack.top();
-  for (const auto& pools_vars : top_scope.pools_to_params) {
+  for (const auto& pools_vars : top_scope.pools_to_var) {
     Var pool_var = runtime::Downcast<Var>(pools_vars.second);
     new_args.push_back(pool_var);
   }
@@ -492,14 +512,14 @@ Expr RelaxPoolAllocationToOffsetConverter::VisitExpr_(const CallNode* op) {
   if (op->op == alloc_tensor_op) {
     if (pass_data_.pool_allocations_.count(call_to_bound_var_.Get(node).value())) {
       auto pool_allocation = pass_data_.pool_allocations_[call_to_bound_var_.Get(node).value()];
-      static const Op& alloc_tensor_storage_op = Op::Get("relax.memory.alloc_tensor");
+      static const Op& memory_alloc_tensor_op = Op::Get("relax.memory.alloc_tensor");
       auto attrs = make_object<MemAllocTensorAttrs>();
       attrs->offset = pool_allocation->byte_offset->value;
       attrs->dtype = op->attrs.as<AllocTensorAttrs>()->dtype;
       auto scope_info = pass_data_.scope_stack.top();
-      auto storage = scope_info.pools_to_params[pool_allocation->pool_info];
+      auto storage = scope_info.pools_to_var[pool_allocation->pool_info];
       return Call(
-          alloc_tensor_storage_op,
+          memory_alloc_tensor_op,
           {GetRef<Var>(storage.as<VarNode>()), call_to_bound_var_.Get(node).value()->shape()},
           Attrs(attrs), {});
     }
@@ -553,26 +573,26 @@ tvm::usmp::PoolAllocationsToOffsetsPassData::ScopeInfo
 RelaxPoolAllocationToOffsetConverter::UpdateFunctionScopeInfo(const Function& original_func) {
   ScopeInfo si;
   si.params = Array<BaseExpr>(original_func->params.begin(), original_func->params.end());
-  Map<Var, PoolInfo> ret;
   using AllocatedPoolInfo = tir::usmp::AllocatedPoolInfo;
   for (const AllocatedPoolInfo& allocated_pool_info : pass_data_.allocated_pool_ordering_) {
     PoolInfo pool_info = allocated_pool_info->pool_info;
     int pool_size = pass_data_.all_pools_sizes_[pool_info];
     String pool_ref_name =
         pool_info->pool_name + "_" + std::to_string(pass_data_.pool_var_count_++);
-    String var_name = pool_ref_name + "_var";
+    String var_name = pool_ref_name + "_pool";
     DataType elem_dtype = DataType::Int(64);
     IntImm shape_value = IntImm(elem_dtype, pool_size);
-    Var pool_var = Var(var_name, ShapeExpr({shape_value}), DynTensorType(1, DataType::UInt(8)));
+    Var pool_var = Var(var_name, {}, ObjectType());
     si.params.push_back(pool_var);
-    si.pools_to_params.Set(pool_info, pool_var);
-    si.allocated_pool_params.push_back(AllocatedPoolInfo(
+    si.pools_to_var.Set(pool_info, pool_var);
+    si.allocated_pools.push_back(AllocatedPoolInfo(
         allocated_pool_info->pool_info, allocated_pool_info->allocated_size, si.params.size() - 1));
   }
   return si;
 }
 
-IRModule RelaxPoolAllocationToOffsetConverter::operator()() {
+std::pair<IRModule, tvm::usmp::PoolAllocationInserterPassData>
+RelaxPoolAllocationToOffsetConverter::operator()() {
   GlobalVar gv = pass_data_.module_->GetGlobalVar("run_model");
   auto main_func = Downcast<relax::Function>(pass_data_.module_->Lookup(gv));
   ScopeInfo si = UpdateFunctionScopeInfo(main_func);
@@ -589,7 +609,7 @@ IRModule RelaxPoolAllocationToOffsetConverter::operator()() {
   if (!pass_data_.emit_tvmscript_printable_) {
     main_func = Function(params, main_func_body, main_func->ret_type, main_func->ret_shape,
                          main_func->attrs, main_func->span);
-    main_func = WithAttr(main_func, tvm::attr::kPoolArgs, si.allocated_pool_params);
+    main_func = WithAttr(main_func, tvm::attr::kPoolArgs, si.allocated_pools);
   } else {
     main_func = Function(params, main_func_body, main_func->ret_type, main_func->ret_shape,
                          DictAttrs(), main_func->span);
@@ -597,10 +617,88 @@ IRModule RelaxPoolAllocationToOffsetConverter::operator()() {
   }
   pass_data_.module_->Update(gv, main_func);
   if (!pass_data_.emit_tvmscript_printable_) {
-    return WithAttr(pass_data_.module_, tvm::attr::kPoolArgs, si.allocated_pool_params);
+    return {WithAttr(pass_data_.module_, tvm::attr::kPoolArgs, si.allocated_pools),
+            tvm::usmp::PoolAllocationInserterPassData(si.allocated_pools)};
   }
-  return pass_data_.module_;
+  return {pass_data_.module_, tvm::usmp::PoolAllocationInserterPassData(si.allocated_pools)};
 }
+
+class RelaxPoolAllocationInserter : public relax::ExprMutator {
+  using PoolAllocationsToOffsetsPassData = tvm::usmp::PoolAllocationsToOffsetsPassData;
+  using PoolAllocationInserterPassData = tvm::usmp::PoolAllocationInserterPassData;
+
+ public:
+  explicit RelaxPoolAllocationInserter(
+      const PoolAllocationsToOffsetsPassData& pass_data,
+      const PoolAllocationInserterPassData& pool_allocations_to_offsets_pass_data)
+      : pass_data_(pass_data),
+        pool_allocation_inserter_pass_data_(pool_allocations_to_offsets_pass_data) {}
+
+  IRModule operator()() {
+    GlobalVar gv = pass_data_.module_->GetGlobalVar("run_model");
+    auto main_func = Downcast<relax::Function>(pass_data_.module_->Lookup(gv));
+
+    for (const tir::usmp::AllocatedPoolInfo& allocated_pool_info :
+         pool_allocation_inserter_pass_data_.allocated_pools_) {
+      ICHECK(allocated_pool_info->pool_var_idx.defined())
+          << "The pool var parameter index should be defined at this point.";
+      pool_params_.push_back(
+          main_func->params[allocated_pool_info->pool_var_idx.value().IntValue()]);
+    }
+    Array<Var> func_params;
+    for (const Var param : main_func->params) {
+      if (std::find(this->pool_params_.begin(), this->pool_params_.end(), param) ==
+          this->pool_params_.end()) {
+        func_params.push_back(param);
+      }
+    }
+
+    Expr main_func_body = this->VisitExpr(main_func->body);
+
+    main_func = Function(func_params, main_func_body, main_func->ret_type, main_func->ret_shape,
+                         main_func->attrs, main_func->span);
+    main_func = WithAttr(main_func, tvm::attr::kPoolArgs, {});
+    pass_data_.module_->Update(gv, main_func);
+    return WithAttr(pass_data_.module_, tvm::attr::kPoolArgs, {});
+  }
+
+ private:
+  Expr VisitExpr_(const SeqExprNode* op) override {
+    auto allocated_pool_infos = pool_allocation_inserter_pass_data_.allocated_pools_;
+    if (!allocated_pool_infos.empty()) {
+      Array<BindingBlock> blocks;
+      builder_->BeginBindingBlock();
+      int index = 0;
+      for (const tir::usmp::AllocatedPoolInfo& allocated_pool_info : allocated_pool_infos) {
+        Call alloc_storage_call = build_alloc_storage(allocated_pool_info);
+        Var pool_var = pool_params_[index];
+        builder_->Emit(VarBinding(pool_var, alloc_storage_call));
+        index++;
+      }
+      blocks.push_back(builder_->EndBlock());
+      blocks.insert(blocks.end(), op->blocks.begin(), op->blocks.end());
+      return SeqExpr(blocks, op->body, op->span);
+    }
+    return runtime::GetRef<Expr>(op);
+  }
+
+  Call build_alloc_storage(const tir::usmp::AllocatedPoolInfo& allocated_pool_info) const {
+    static const Op& alloc_storage_op = Op::Get("relax.memory.alloc_storage");
+    auto attrs = runtime::make_object<MemAllocStorageAttrs>();
+    attrs->dtype = DataType::UInt(8);
+    attrs->pool_info_name = allocated_pool_info->pool_info->pool_name;
+    auto value = runtime::NDArray::Empty({}, DataType::Int(64), {kDLCPU, 0});
+    auto pool_size = allocated_pool_info->allocated_size.IntValue();
+    value.CopyFromBytes(&pool_size, sizeof(pool_size));
+    auto constant = relay::Constant(value);
+    Call alloc_storage_call = Call(alloc_storage_op, {constant}, Attrs(attrs), {}, Span());
+    return alloc_storage_call;
+  }
+
+  Array<Var> pool_params_;
+  PoolAllocationsToOffsetsPassData pass_data_;
+  PoolAllocationInserterPassData pool_allocation_inserter_pass_data_;
+};
 
 }  // namespace usmp
 }  // namespace relax
@@ -614,9 +712,10 @@ class PoolAllocationToOffsetConverter {
   explicit PoolAllocationToOffsetConverter(
       const IRModule& module,
       const Map<runtime::ObjectRef, tir::usmp::PoolAllocation>& pool_allocations,
-      bool emit_tvmscript_printable = false) {
+      bool emit_tvmscript_printable = false, bool insert_storage_allocations = true) {
     pass_data_.pool_allocations_ = pool_allocations;
     pass_data_.emit_tvmscript_printable_ = emit_tvmscript_printable;
+    pass_data_.insert_storage_allocations_ = insert_storage_allocations;
     pass_data_.module_ = module->ShallowCopy();
     for (const auto& kv : pass_data_.pool_allocations_) {
       size_t extent_size = -1;
@@ -677,18 +776,26 @@ class PoolAllocationToOffsetConverter {
 IRModule PoolAllocationToOffsetConverter::operator()() {
   relax::usmp::RelaxPoolAllocationToOffsetConverter relax_pool_allocation =
       relax::usmp::RelaxPoolAllocationToOffsetConverter(pass_data_);
-  IRModule module = relax_pool_allocation();
-  return module;
+  std::pair<IRModule, tvm::usmp::PoolAllocationInserterPassData> pair = relax_pool_allocation();
+
+  if (pass_data_.insert_storage_allocations_) {
+    relax::usmp::RelaxPoolAllocationInserter relax_pool_allocation_inserter =
+        relax::usmp::RelaxPoolAllocationInserter(pass_data_, pair.second);
+    IRModule module = relax_pool_allocation_inserter();
+    return module;
+  }
+  return pair.first;
 }
 
 namespace transform {
 
 tvm::transform::Pass ConvertPoolAllocationsToOffsets(
     const Map<runtime::ObjectRef, tir::usmp::PoolAllocation>& pool_allocations,
-    Bool emit_tvmscript_printable) {
+    Bool emit_tvmscript_printable, Bool insert_storage_allocations) {
   auto pass_func = [=](IRModule m, tvm::transform::PassContext ctx) {
-    return Downcast<IRModule>(PoolAllocationToOffsetConverter(
-        m, pool_allocations, emit_tvmscript_printable->value != 0)());
+    return Downcast<IRModule>(
+        PoolAllocationToOffsetConverter(m, pool_allocations, emit_tvmscript_printable->value != 0,
+                                        insert_storage_allocations->value != 0)());
   };
   return tvm::transform::CreateModulePass(pass_func, 0,
                                           "relax.usmp.ConvertPoolAllocationsToOffsets", {});
