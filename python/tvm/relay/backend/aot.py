@@ -101,3 +101,24 @@ def CreateExecutorMetadata(
     return _aot.CreateExecutorMetadata(
         mod, mod_name, executor, workspace_byte_alignment, constant_byte_alignment
     )
+
+
+def RelaxAOTLowerMain(mod_name: str, config: object, call_type: CallType) -> Pass:
+    """Lower a Relax main function into an AOT TIR main function.
+
+    Parameters
+    ----------
+    mod_name: str
+        The name of the module.
+    config : CompilationConfig
+        The compilation configuration.
+    call_type : CallType
+        The calling convention to use.
+
+    Returns
+    -------
+    Pass
+        The AOTLowerMain pass.
+
+    """
+    return _aot.RelaxAOTLowerMain(mod_name, config, call_type.value)

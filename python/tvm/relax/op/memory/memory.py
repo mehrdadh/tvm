@@ -47,9 +47,12 @@ def alloc_storage(
     result : Call
         A relax Call, which gets the allocated storage.
     """
-    return _ffi_api.alloc_storage(
-        size, virtual_device_index, storage_scope, dtype, pool_info_name
-    )  # type: ignore
+    if not isinstance(size, ShapeExpr):
+        if not isinstance(size, (tuple, list)):
+            size = (size,)
+        size = ShapeExpr(size)
+
+    return _ffi_api.alloc_storage(size, virtual_device_index, storage_scope, dtype, pool_info_name)  # type: ignore
 
 
 def alloc_tensor(
@@ -80,6 +83,7 @@ def alloc_tensor(
         if not isinstance(shape, (tuple, list)):
             shape = (shape,)
         shape = ShapeExpr(shape)
+
     return _ffi_api.alloc_tensor(storage, shape, offset, dtype)  # type: ignore
 
 
