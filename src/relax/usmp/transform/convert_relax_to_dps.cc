@@ -1,72 +1,91 @@
 /*
-* Licensed to the Apache Software Foundation (ASF) under one
-* or more contributor license agreements.  See the NOTICE file
-* distributed with this work for additional information
-* regarding copyright ownership.  The ASF licenses this file
-* to you under the Apache License, Version 2.0 (the
-* "License"); you may not use this file except in compliance
-* with the License.  You may obtain a copy of the License at
-*
-*   http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing,
-* software distributed under the License is distributed on an
-* "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-* KIND, either express or implied.  See the License for the
-* specific language governing permissions and limitations
-* under the License.
-*/
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 
 #include <tvm/target/target.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/usmp/utils.h>
 
 #include <string>
-#include <utility>
 
-#include "tvm/relax/attrs/memory.h"
 #include "tvm/relax/expr_functor.h"
 
 namespace tvm {
 
-/*! \brief Assign PoolInfo objects to allocate that does not have any.
-* The schedulers have the oppurtunity to assign PoolInfo objects to
-* allocate nodes. However, each allocate node is expected to have
-* at least one PoolInfo node assigned to it. If it was not the case,
-* this Pass will assign all PoolInfo objects that the target could
-* access.*/
-
 namespace relax {
 namespace usmp {
 
-class ConvertRelaxToDPS : public ExprMutator {
+class ConvertRelaxMainToDPS : public ExprMutator {
  public:
-  explicit ConvertRelaxToDPS(IRModule mod) : mod_(mod) {}
+  explicit ConvertRelaxMainToDPS(IRModule mod, bool attach_io_to_attrs)
+      : mod_(mod), attach_io_to_attrs_(attach_io_to_attrs) {}
 
   IRModule operator()() {
     GlobalVar gv = mod_->GetGlobalVar("run_model");
     auto main_func = Downcast<relax::Function>(mod_->Lookup(gv));
     ICHECK(main_func.defined()) << "main function is not in the module";
 
-    func_return = get_func_return(main_func);
-    ICHECK(func_return.as<VarNode>() != nullptr) << "Only support Var returns for now.";
+    input_vars = main_func->params;
+
+    Expr func_return = get_func_return(main_func);
+    if (func_return->IsInstance<relay::ConstantNode>()) {
+      VLOG(0) << "Function " << gv->name_hint << " is already in DPS or returns constant.";
+      return mod_;
+    }
+    ICHECK(func_return->IsInstance<VarNode>() || func_return->IsInstance<relay::TupleNode>())
+        << "Only support Var or Tuple returns for now.";
     {
-      auto func_return_var = runtime::Downcast<Var>(func_return);
-      output_vars.push_back(func_return_var);
-      alias_[func_return_var] = func_return_var;
+      if (const VarNode* node = func_return.as<VarNode>()) {
+        auto return_var = runtime::GetRef<Var>(node);
+        if (node->checked_type()->IsInstance<DynTensorTypeNode>() &&
+            !var_in_array(input_vars, return_var)) {
+          output_vars.push_back(return_var);
+        }
+        return_alias_[return_var] = return_var;
+      }
+      if (const relay::TupleNode* node = func_return.as<relay::TupleNode>()) {
+        auto tuple = runtime::GetRef<relay::Tuple>(node);
+        return_alias_[tuple] = tuple;
+        for (Expr expr : node->fields) {
+          ICHECK(expr->checked_type()->IsInstance<DynTensorTypeNode>())
+              << "Only support Tuple containing Tensors but got Tuple containing "
+              << PrettyPrint(expr->checked_type());
+          auto var = runtime::Downcast<Var>(expr);
+          if (!var_in_array(input_vars, var)) {
+            // If var is not already in the input.
+            output_vars.push_back(var);
+          }
+          return_alias_[var] = var;
+        }
+      }
     }
 
-    Array<Var> input_vars = main_func->params;
     Expr new_body = this->VisitExpr(main_func->body);
 
     Array<Var> new_params = input_vars;
     new_params.insert(input_vars.end(), output_vars.begin(), output_vars.end());
 
-    Function new_func = Function(new_params, new_body,
-                                 DynTensorType(0, DataType::Int(32)),
+    Function new_func = Function(new_params, new_body, DynTensorType(0, DataType::Int(32)),
                                  RuntimeDepShape(), main_func->attrs);
-    new_func = WithAttr(new_func, "input_vars", input_vars);
-    new_func = WithAttr(new_func, "output_vars", output_vars);
+    if (attach_io_to_attrs_) {
+      new_func = WithAttr(new_func, "input_vars", input_vars);
+      new_func = WithAttr(new_func, "output_vars", output_vars);
+    }
 
     mod_->Update(gv, new_func);
     return mod_;
@@ -78,11 +97,11 @@ class ConvertRelaxToDPS : public ExprMutator {
       // This is a call_packed call.
       Array<Expr> new_args;
       for (Expr arg : op->args) {
-        if (arg->IsInstance<VarNode>() && alias_.count(runtime::Downcast<Var>(arg)) > 0) {
-            new_args.push_back(alias_[runtime::Downcast<Var>(arg)]);
-          } else {
-            new_args.push_back(arg);
-          }
+        if (arg->IsInstance<VarNode>() && return_alias_.count(runtime::Downcast<Var>(arg)) > 0) {
+          new_args.push_back(return_alias_[runtime::Downcast<Var>(arg)]);
+        } else {
+          new_args.push_back(arg);
+        }
       }
       return Call(op->op, new_args, op->attrs, op->type_args, op->span);
     }
@@ -95,19 +114,45 @@ class ConvertRelaxToDPS : public ExprMutator {
     for (auto iter = block->bindings.rbegin(); iter != block->bindings.rend(); iter++) {
       Binding binding = *iter;
       if (const auto* var_binding = binding.as<VarBindingNode>()) {
-        if (var_binding->var.same_as(func_return) && var_binding->value->IsInstance<VarNode>()) {
+        if (var_binding->value->IsInstance<VarNode>() &&
+            return_alias_.count(var_binding->var) > 0) {
           // Alias. Update alias map and do not emit binding.
-          alias_[runtime::Downcast<Var>(var_binding->value)] = alias_[var_binding->var];
+          return_alias_[runtime::Downcast<Var>(var_binding->value)] =
+              return_alias_[var_binding->var];
+          continue;
+        }
+
+        if (var_binding->value->IsInstance<relay::TupleNode>() &&
+            return_alias_.count(var_binding->var) > 0) {
+          // Defining the returned tuple.
+          auto tuple = runtime::Downcast<relay::Tuple>(var_binding->value);
+          return_alias_[tuple] = return_alias_[var_binding->var];
+          for (Expr expr : tuple->fields) {
+            ICHECK(expr->IsInstance<VarNode>()) << "Only support Tuple containing Vars but got "
+                                                   "Tuple containing "
+                                                << PrettyPrint(expr->checked_type());
+            auto var = runtime::Downcast<Var>(expr);
+            if (!var_in_array(input_vars, var)) {
+              output_vars.push_back(var);
+            }
+            return_alias_[var] = var;
+          }
+          // Do not emit the tuple declaration.
           continue;
         }
 
         if (var_binding->value->IsInstance<CallNode>()) {
           static const Op& alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");
           Call call = runtime::Downcast<Call>(var_binding->value);
-          if (call->op == alloc_tensor_op && alias_.count(var_binding->var) > 0 &&
-              alias_[var_binding->var].same_as(func_return)) {
+          if (call->op == alloc_tensor_op && return_alias_.count(var_binding->var) > 0) {
             // This is an alloc tensor for the output. Do not emit the binding.
             continue;
+          }
+          if (return_alias_.count(var_binding->var) > 0 &&
+              !call->op->IsInstance<ExternFuncNode>()) {
+            LOG(FATAL) << "Binding the output \"" << var_binding->var->name_hint()
+                       << "\" to "
+                          "a var allocated outside the function.";
           }
         }
 
@@ -150,25 +195,23 @@ class ConvertRelaxToDPS : public ExprMutator {
         blocks.push_back(*iter);
       }
 
-//      builder_->BeginBindingBlock();
       Expr body = build_return_const();
-//      BindingBlock prologue = builder_->EndBlock();
-//      if (!prologue->bindings.empty()) {
-//        blocks.push_back(prologue);
-//      }
       return SeqExpr(blocks, body);
     }
     return runtime::GetRef<SeqExpr>(op);
   }
 
+  static bool var_in_array(const Array<Var>& arr, const Var& var) {
+    return (std::find(arr.begin(), arr.end(), var) != arr.end());
+  }
 
-  Expr get_func_return(Function func) {
+  static Expr get_func_return(Function func) {
     const SeqExprNode* seq_expr = func->body.as<SeqExprNode>();
     ICHECK(seq_expr != nullptr) << "Expecting a function with a SeqExpr body";
     return seq_expr->body;
   }
 
-  relay::Constant build_return_const() {
+  static relay::Constant build_return_const() {
     auto value = runtime::NDArray::Empty({}, DataType::Int(32), {kDLCPU, 0});
     auto zero_value = 0;
     value.CopyFromBytes(&zero_value, sizeof(0));
@@ -178,12 +221,12 @@ class ConvertRelaxToDPS : public ExprMutator {
 
   bool visited_func_body = false;
 
-  Expr func_return;
+  Array<Var> input_vars;
   Array<Var> output_vars;
-
-  std::unordered_map<Var, Var, ObjectPtrHash, ObjectPtrEqual> alias_;
+  std::unordered_map<Expr, Expr, ObjectPtrHash, ObjectPtrEqual> return_alias_;
 
   IRModule mod_;
+  bool attach_io_to_attrs_;
 };
 
 }  // namespace usmp
@@ -191,14 +234,14 @@ class ConvertRelaxToDPS : public ExprMutator {
 
 namespace transform {
 
-tvm::transform::Pass ConvertRelaxToDPS() {
- auto pass_func = [=](IRModule m, tvm::transform::PassContext ctx) {
-   return relax::usmp::ConvertRelaxToDPS(m)();
- };
- return tvm::transform::CreateModulePass(pass_func, 0, "relax.usmp.ConvertRelaxToDPS", {});
+tvm::transform::Pass ConvertRelaxMainToDPS(Bool attach_io_to_attrs) {
+  auto pass_func = [=](IRModule m, tvm::transform::PassContext ctx) {
+    return relax::usmp::ConvertRelaxMainToDPS(m, attach_io_to_attrs->value != 0)();
+  };
+  return tvm::transform::CreateModulePass(pass_func, 0, "relax.usmp.ConvertRelaxMainToDPS", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.ConvertRelaxToDPS").set_body_typed(ConvertRelaxToDPS);
+TVM_REGISTER_GLOBAL("relax.transform.ConvertRelaxMainToDPS").set_body_typed(ConvertRelaxMainToDPS);
 
 }  // namespace transform
 }  // namespace tvm

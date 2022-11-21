@@ -360,8 +360,9 @@ def ConvertPoolAllocationsToOffsets(
         pool_allocations, emit_tvmscript_printable, insert_storage_allocations
     )
 
-def ConvertRelaxToDPS() -> tvm.ir.transform.Pass:
-    return _ffi_api.ConvertRelaxToDPS()
+
+def ConvertRelaxMainToDPS(attach_io_to_attrs: bool = True) -> tvm.ir.transform.Pass:
+    return _ffi_api.ConvertRelaxMainToDPS(attach_io_to_attrs)
 
 
 def _wrap_class_function_pass(pass_cls, pass_info):
