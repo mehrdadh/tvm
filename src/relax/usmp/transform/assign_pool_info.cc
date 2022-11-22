@@ -254,7 +254,7 @@ IRModule PoolInfoAssigner::operator()() {
           TIRPoolInfoAssigner(func, target_pool_infos_, target_const_pool_infos_);
       tir::Stmt body = tir_pool_info_assigner();
       PrimFunc new_prim_func = PrimFunc(func->params, body, func->ret_type, func->buffer_map,
-                                        func->preflattened_buffer_map, func->attrs);
+                                        func->attrs);
       mod_->Update(gv, new_prim_func);
     }
   }

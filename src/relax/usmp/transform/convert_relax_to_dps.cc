@@ -165,7 +165,7 @@ class ConvertRelaxMainToDPS : public ExprMutator {
         }
 
         bindings_reverse.push_back(VarBinding(new_var, new_value));
-      } else if (const auto* node = binding.as<MatchShapeNode>()) {
+      } else if (binding->IsInstance<MatchShapeNode>()) {
         LOG(FATAL) << "MatchShape bindings are not supporter for now.";
       } else {
         LOG(FATAL) << "TypeError: Invalid type: " << binding->GetTypeKey();

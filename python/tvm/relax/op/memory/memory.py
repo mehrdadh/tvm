@@ -15,8 +15,10 @@
 # specific language governing permissions and limitations
 """Relax memory primitives."""
 
+from typing import List, Union
+from tvm.ir.expr import PrimExpr
 from . import _ffi_api
-from ...expr import Expr, Call
+from ...expr import ShapeExpr, Expr, Call
 
 
 def alloc_storage(
@@ -48,7 +50,7 @@ def alloc_storage(
     return _ffi_api.alloc_storage(size, virtual_device_index, storage_scope, dtype, pool_info_name)  # type: ignore
 
 
-def alloc_tensor(storage: Expr, shape: Expr, offset: int, dtype: str) -> Call:
+def alloc_tensor(storage: Expr, shape: Union[ShapeExpr, PrimExpr, List[PrimExpr]], offset: int, dtype: str) -> Call:
     """Construct a Call to allocate a tensor on a certain storage starting from the given offset.
 
     Parameters
@@ -70,6 +72,10 @@ def alloc_tensor(storage: Expr, shape: Expr, offset: int, dtype: str) -> Call:
     result : Call
         A relax Call, which gets the allocated tensor.
     """
+    if not isinstance(shape, ShapeExpr):
+        if not isinstance(shape, (tuple, list)):
+            shape = (shape,)
+        shape = ShapeExpr(shape)
     return _ffi_api.alloc_tensor(storage, shape, offset, dtype)  # type: ignore
 
 

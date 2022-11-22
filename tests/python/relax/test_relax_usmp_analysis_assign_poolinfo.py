@@ -72,12 +72,14 @@ class RelaxAndTIR:
         placeholder_67 = T.match_buffer(placeholder_64, [64], dtype="int32", elem_offset=0, align=128, offset_factor=1)
         T_cast_21 = T.match_buffer(T_cast_20, [289], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
         # body
-        PaddedInput_7 = T.allocate([157323], "int16", "global")
+        PaddedInput_7_data = T.allocate([157323], "int16", "global")
+        PaddedInput_7 = T.buffer_decl(shape=[157323], dtype="int16", data=PaddedInput_7_data)
         for i0_i1_fused_7 in T.serial(0, 229):
             for i2_7, i3_7 in T.grid(229, 3):
                 PaddedInput_7[(((i0_i1_fused_7*687) + (i2_7*3)) + i3_7)] = T.if_then_else(((((2 <= i0_i1_fused_7) and (i0_i1_fused_7 < 226)) and (2 <= i2_7)) and (i2_7 < 226)), placeholder_65[((((i0_i1_fused_7*672) + (i2_7*3)) + i3_7) - 1350)], T.int16(0), dtype="int16")
         for ax0_ax1_fused_ax2_fused_7 in T.serial(0, 12544):
-            Conv2dOutput_7 = T.allocate([64], "int32", "global")
+            Conv2dOutput_7_data = T.allocate([64], "int32", "global")
+            Conv2dOutput_7 = T.buffer_decl(shape=[64], dtype="int32", data=Conv2dOutput_7_data)
             for ff_3 in T.serial(0, 64):
                 Conv2dOutput_7[ff_3] = 0
                 for ry_2, rx_2, rc_7 in T.grid(7, 7, 3):
@@ -86,11 +88,11 @@ class RelaxAndTIR:
                 T_cast_21[((ax0_ax1_fused_ax2_fused_7*64) + ax3_inner_7)] = T.cast(T.max(T.min(T.q_multiply_shift((Conv2dOutput_7[ax3_inner_7] + placeholder_67[ax3_inner_7]), 1939887962, 31, -9, dtype="int32"), 255), 0), "uint8")
 
     @R.function
-    def __tvm_main__(input: Tensor((16, 16), "uint8")) -> Tensor:
-        tsid_11 = relax.builtin.alloc_tensor((1, 1), runtime_device_index=0, dtype="int8")
-        tsid_12 = relax.builtin.alloc_tensor((1, 1), runtime_device_index=0, dtype="int8")
+    def __tvm_main__(input: R.Tensor((16, 16), "uint8")) -> R.Tensor:
+        tsid_11 = R.builtin.alloc_tensor((1, 1), runtime_device_index=0, dtype="int8")
+        tsid_12 = R.builtin.alloc_tensor((1, 1), runtime_device_index=0, dtype="int8")
 
-        output = relax.call_tir("prim_func_1", (input, tsid_11, tsid_12), (802816, 1), dtype="int32")
+        output = R.call_tir("prim_func_1", (input, tsid_11, tsid_12), (802816, 1), dtype="int32")
         return output
 # fmt: on
 
@@ -127,12 +129,14 @@ class RelaxAndTIRMultipleTargets:
         placeholder_67 = T.match_buffer(placeholder_64, [64], dtype="int32", elem_offset=0, align=128, offset_factor=1)
         T_cast_21 = T.match_buffer(T_cast_20, [289], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
         # body
-        PaddedInput_7 = T.allocate([157323], "int16", "global")
+        PaddedInput_7_data = T.allocate([157323], "int16", "global")
+        PaddedInput_7 = T.buffer_decl(shape=[157323], dtype="int16", data=PaddedInput_7_data)
         for i0_i1_fused_7 in T.serial(0, 229):
             for i2_7, i3_7 in T.grid(229, 3):
                 PaddedInput_7[(((i0_i1_fused_7*687) + (i2_7*3)) + i3_7)] = T.if_then_else(((((2 <= i0_i1_fused_7) and (i0_i1_fused_7 < 226)) and (2 <= i2_7)) and (i2_7 < 226)), placeholder_65[((((i0_i1_fused_7*672) + (i2_7*3)) + i3_7) - 1350)], T.int16(0), dtype="int16")
         for ax0_ax1_fused_ax2_fused_7 in T.serial(0, 12544):
-            Conv2dOutput_7 = T.allocate([64], "int32", "global")
+            Conv2dOutput_7_data = T.allocate([64], "int32", "global")
+            Conv2dOutput_7 = T.buffer_decl(shape=[64], dtype="int32", data=Conv2dOutput_7_data)
             for ff_3 in T.serial(0, 64):
                 Conv2dOutput_7[ff_3] = 0
                 for ry_2, rx_2, rc_7 in T.grid(7, 7, 3):
@@ -147,7 +151,8 @@ class RelaxAndTIRMultipleTargets:
         placeholder_29 = T.match_buffer(placeholder_28, [802816], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
         T_cast_7 = T.match_buffer(T_cast_6, [177], dtype="int16", elem_offset=0, align=128, offset_factor=1)
         # body
-        tensor_2 = T.allocate([200704], "uint8", "global")
+        tensor_2_data = T.allocate([200704], "uint8", "global")
+        tensor_2 = T.buffer_decl(shape=[200704], dtype="uint8", data=tensor_2_data)
         for ax0_ax1_fused_4 in T.serial(0, 56):
             for ax2_4 in T.serial(0, 56):
                 for ax3_init in T.serial(0, 64):
@@ -159,12 +164,12 @@ class RelaxAndTIRMultipleTargets:
                 T_cast_7[(((ax0_ax1_fused_5*3584) + (ax2_5*64)) + ax3_3)] = T.cast(tensor_2[(((ax0_ax1_fused_5*3584) + (ax2_5*64)) + ax3_3)], "int16")
 
     @R.function
-    def __tvm_main__(input: Tensor((16, 16), "uint8")) -> Tensor:
-        tsid_11 = relax.builtin.alloc_tensor((1, 1), runtime_device_index=0, dtype="int8")
-        tsid_12 = relax.builtin.alloc_tensor((1, 1), runtime_device_index=0, dtype="int8")
+    def __tvm_main__(input: R.Tensor((16, 16), "uint8")) -> R.Tensor:
+        tsid_11 = R.builtin.alloc_tensor((1, 1), runtime_device_index=0, dtype="int8")
+        tsid_12 = R.builtin.alloc_tensor((1, 1), runtime_device_index=0, dtype="int8")
 
-        lv1 = relax.call_tir("prim_func_1", (input, tsid_11, tsid_12), (802816, 1), dtype="int32")
-        output = relax.call_tir("prim_func_2", (lv1), (802816, 1), dtype="int32")
+        lv1 = R.call_tir("prim_func_1", (input, tsid_11, tsid_12), (802816, 1), dtype="int32")
+        output = R.call_tir("prim_func_2", (lv1), (802816, 1), dtype="int32")
         return output
 # fmt: on
 

@@ -267,7 +267,7 @@ PrimFunc TIRPoolAllocationToOffsetConverter::CreatePrimFuncWithPoolParams(
       params.push_back(runtime::Downcast<Var>(base_expr));
     }
     PrimFunc ret = PrimFunc(params, new_body, original_primfunc->ret_type, si.buffer_map,
-                            si.buffer_map, original_attrs);
+                            original_attrs);
     if (!pass_data_.emit_tvmscript_printable_) {
       ret = WithAttr(ret, tvm::attr::kPoolArgs, si.allocated_pools);
     }
@@ -687,11 +687,8 @@ class RelaxPoolAllocationInserter : public relax::ExprMutator {
     auto attrs = runtime::make_object<MemAllocStorageAttrs>();
     attrs->dtype = DataType::UInt(8);
     attrs->pool_info_name = allocated_pool_info->pool_info->pool_name;
-    auto value = runtime::NDArray::Empty({}, DataType::Int(64), {kDLCPU, 0});
-    auto pool_size = allocated_pool_info->allocated_size.IntValue();
-    value.CopyFromBytes(&pool_size, sizeof(pool_size));
-    auto constant = relay::Constant(value);
-    Call alloc_storage_call = Call(alloc_storage_op, {constant}, Attrs(attrs), {}, Span());
+    int32_t pool_size = allocated_pool_info->allocated_size.IntValue();
+    Call alloc_storage_call = Call(alloc_storage_op, {ShapeExpr({ PrimExpr(pool_size) })}, Attrs(attrs), {}, Span());
     return alloc_storage_call;
   }
 
