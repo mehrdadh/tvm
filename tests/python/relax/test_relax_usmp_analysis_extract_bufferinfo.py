@@ -90,7 +90,7 @@ def _assign_poolinfos_to_allocates_in_irmodule(mod, pool_infos, constant_pool_in
             return super().visit_call_(op)
 
     relax_visitor = RelaxFuncAnnotate()
-    mod["run_model"] = relax_visitor.visit_expr(mod["run_model"])
+    mod["main"] = relax_visitor.visit_expr(mod["main"])
 
     ret = tvm.IRModule()
     for global_var, basefunc in mod.functions.items():
@@ -170,7 +170,7 @@ class LinearStructure:
                 T_cast_7[(((ax0_ax1_fused_5*3584) + (ax2_5*64)) + ax3_3)] = T.cast(tensor_2[(((ax0_ax1_fused_5*3584) + (ax2_5*64)) + ax3_3)], "int16")
 
     @R.function
-    def run_model(input: R.Tensor((16, 16), "uint8")) -> R.Tensor:
+    def main(input: R.Tensor((16, 16), "uint8")) -> R.Tensor:
         tsid_10 = R.builtin.alloc_tensor((1, 1), runtime_device_index=0, dtype="int8")
         tsid_11 = R.builtin.alloc_tensor((1, 1), runtime_device_index=0, dtype="int8")
         tsid_12 = R.builtin.alloc_tensor((1, 1), runtime_device_index=0, dtype="int8")
@@ -197,7 +197,7 @@ def test_linear():
         relax_mod, [fast_memory_pool, slow_memory_pool]
     )
 
-    buffer_info_analysis = tvm.relax.analysis.extract_buffer_info(relax_mod["run_model"], relax_mod)
+    buffer_info_analysis = tvm.relax.analysis.extract_buffer_info(relax_mod["main"], relax_mod)
     buffer_info_map_relax = _replace_stmt_with_buf_var_names(buffer_info_analysis.buffer_info_stmts)
 
     assert buffer_info_analysis.memory_pressure == 3526168
@@ -269,7 +269,7 @@ class ParallelSerialMixedForLoops:
                     T_cast_23[(((ax0_ax1_fused_ax2_fused_8*192) + (ax3_outer_4*64)) + ax3_inner_8)] = T.cast(T.max(T.min(T.q_multiply_shift((Conv2dOutput_8[ax3_inner_8] + placeholder_73[((ax3_outer_4*64) + ax3_inner_8)]), 1139793473, 31, -6, dtype="int32"), 255), 0), "uint8")
 
     @R.function
-    def run_model(input: R.Tensor((512, 512), "uint8")) -> R.Tensor:
+    def main(input: R.Tensor((512, 512), "uint8")) -> R.Tensor:
         tsid_10 = R.builtin.alloc_tensor((1, 1), runtime_device_index=0, dtype="int8")
         tsid_11 = R.builtin.alloc_tensor((1, 1), runtime_device_index=0, dtype="int8")
 
@@ -307,7 +307,7 @@ class AllSerialForLoops:
 
 
     @R.function
-    def run_model(input: R.Tensor((512, 512), "uint8")) -> R.Tensor:
+    def main(input: R.Tensor((512, 512), "uint8")) -> R.Tensor:
         tsid_10 = R.builtin.alloc_tensor((1, 1), runtime_device_index=0, dtype="int8")
         tsid_11 = R.builtin.alloc_tensor((1, 1), runtime_device_index=0, dtype="int8")
 
@@ -329,7 +329,7 @@ def test_parallel_serial_mixed_for_loops():
     all_serial_mod = seq(all_serial_mod)
     all_serial_mod = _assign_targets_to_relaxfuncs_irmodule(all_serial_mod, target)
     all_serial_mod = _assign_poolinfos_to_allocates_in_irmodule(all_serial_mod, [global_ws_pool])
-    main_func = all_serial_mod["run_model"]
+    main_func = all_serial_mod["main"]
     buffer_info_analysis = tvm.relax.analysis.extract_buffer_info(main_func, all_serial_mod)
     assert buffer_info_analysis.memory_pressure == 1479426
     buffer_info_map = _replace_stmt_with_buf_var_names(buffer_info_analysis.buffer_info_stmts)
@@ -354,7 +354,7 @@ def test_parallel_serial_mixed_for_loops():
     parallel_serial_mixed_tir_mod = _assign_poolinfos_to_allocates_in_irmodule(
         parallel_serial_mixed_tir_mod, [global_ws_pool]
     )
-    main_func = parallel_serial_mixed_tir_mod["run_model"]
+    main_func = parallel_serial_mixed_tir_mod["main"]
     buffer_info_analysis = tvm.relax.analysis.extract_buffer_info(
         main_func, parallel_serial_mixed_tir_mod
     )
@@ -654,7 +654,7 @@ class InceptionStructure:
                     T_cast_23[(((ax0_ax1_fused_ax2_fused_8*192) + (ax3_outer_4*64)) + ax3_inner_8)] = T.cast(T.max(T.min(T.q_multiply_shift((Conv2dOutput_8[ax3_inner_8] + placeholder_73[((ax3_outer_4*64) + ax3_inner_8)]), 1139793473, 31, -6, dtype="int32"), 255), 0), "uint8")
 
     @R.function
-    def run_model(input: R.Tensor((16, 16), "uint8")) -> R.Tensor:
+    def main(input: R.Tensor((16, 16), "uint8")) -> R.Tensor:
         tsid_100 = R.builtin.alloc_tensor((1, 1), runtime_device_index=0, dtype="int8")
         tsid_101 = R.builtin.alloc_tensor((1, 1), runtime_device_index=0, dtype="int8")
         sid_9 = R.call_tir("tvmgen_default_fused_cast_subtract", (input, tsid_100), (301056, 1), dtype="int32")
@@ -688,7 +688,7 @@ def test_inception_structure():
     relax_mod = seq(relax_mod)
     relax_mod = _assign_targets_to_relaxfuncs_irmodule(relax_mod, target)
     relax_mod = _assign_poolinfos_to_allocates_in_irmodule(relax_mod, [global_ws_pool])
-    main_func = relax_mod["run_model"]
+    main_func = relax_mod["main"]
     buffer_info_analysis = tvm.relax.analysis.extract_buffer_info(main_func, relax_mod)
     assert buffer_info_analysis.memory_pressure == 3526168
     buffer_info_map = _replace_stmt_with_buf_var_names(buffer_info_analysis.buffer_info_stmts)
@@ -1522,7 +1522,7 @@ class MultipleCallsToSamePrimFuncModule:
                 T_add_3[ax0_ax1_fused_ax2_fused * 12 + ax3] = placeholder_29[ax0_ax1_fused_ax2_fused * 12 + ax3] + T_softmax_norm[ax3]
 
     @R.function
-    def run_model(input: R.Tensor((16, 16), "uint8")) -> R.Tensor:
+    def main(input: R.Tensor((16, 16), "uint8")) -> R.Tensor:
         tsid_100 = R.builtin.alloc_tensor((1, 1), runtime_device_index=0, dtype="int8")
         tsid_101 = R.builtin.alloc_tensor((1, 1), runtime_device_index=0, dtype="int8")
         tsid_102 = R.builtin.alloc_tensor((1, 1), runtime_device_index=0, dtype="int8")
@@ -1565,7 +1565,7 @@ def test_multiple_calls_to_same_primfunc():
     relax_mod = _assign_poolinfos_to_allocates_in_irmodule(
         relax_mod, [global_ws_pool], [global_const_pool]
     )
-    main_func = relax_mod["run_model"]
+    main_func = relax_mod["main"]
     buffer_info_analysis = tvm.relax.analysis.extract_buffer_info(main_func, relax_mod)
     assert buffer_info_analysis.memory_pressure == 41857
     buffer_info_map = _replace_stmt_with_buf_var_names(buffer_info_analysis.buffer_info_stmts)

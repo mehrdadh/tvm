@@ -88,7 +88,7 @@ class RelaxAndTIR:
                 T_cast_21[((ax0_ax1_fused_ax2_fused_7*64) + ax3_inner_7)] = T.cast(T.max(T.min(T.q_multiply_shift((Conv2dOutput_7[ax3_inner_7] + placeholder_67[ax3_inner_7]), 1939887962, 31, -9, dtype="int32"), 255), 0), "uint8")
 
     @R.function
-    def __tvm_main__(input: R.Tensor((16, 16), "uint8")) -> R.Tensor:
+    def main(input: R.Tensor((16, 16), "uint8")) -> R.Tensor:
         tsid_11 = R.builtin.alloc_tensor((1, 1), runtime_device_index=0, dtype="int8")
         tsid_12 = R.builtin.alloc_tensor((1, 1), runtime_device_index=0, dtype="int8")
 
@@ -105,7 +105,7 @@ def test_relax_and_tir():
     seq = tvm.transform.Sequential(passes)
     relax_mod = seq(relax_mod)
 
-    relax_mod["__tvm_main__"] = relax_mod["__tvm_main__"].with_attr("target", target)
+    relax_mod["main"] = relax_mod["main"].with_attr("target", target)
     relax_mod["prim_func_1"] = relax_mod["prim_func_1"].with_attr("target", target_llvm)
 
     c_target_pool = WorkspacePoolInfo(pool_name="c_target_pool", targets=[target])
@@ -164,7 +164,7 @@ class RelaxAndTIRMultipleTargets:
                 T_cast_7[(((ax0_ax1_fused_5*3584) + (ax2_5*64)) + ax3_3)] = T.cast(tensor_2[(((ax0_ax1_fused_5*3584) + (ax2_5*64)) + ax3_3)], "int16")
 
     @R.function
-    def __tvm_main__(input: R.Tensor((16, 16), "uint8")) -> R.Tensor:
+    def main(input: R.Tensor((16, 16), "uint8")) -> R.Tensor:
         tsid_11 = R.builtin.alloc_tensor((1, 1), runtime_device_index=0, dtype="int8")
         tsid_12 = R.builtin.alloc_tensor((1, 1), runtime_device_index=0, dtype="int8")
 
@@ -183,7 +183,7 @@ def test_relax_and_tir_multiple_targets():
     seq = tvm.transform.Sequential(passes)
     relax_mod = seq(relax_mod)
 
-    relax_mod["__tvm_main__"] = relax_mod["__tvm_main__"].with_attr("target", target)
+    relax_mod["main"] = relax_mod["main"].with_attr("target", target)
     relax_mod["prim_func_1"] = relax_mod["prim_func_1"].with_attr("target", target_llvm)
     relax_mod["prim_func_2"] = relax_mod["prim_func_2"].with_attr("target", target_cuda)
 

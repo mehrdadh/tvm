@@ -154,7 +154,7 @@ class PoolInfoAssigner {
  public:
   explicit PoolInfoAssigner(const IRModule& module) {
     auto main_func =
-        Downcast<relax::Function>(module->Lookup("run_model"));
+        Downcast<relax::Function>(module->Lookup("main"));
     ICHECK(main_func.defined()) << "main function is not in the module";
     Optional<Target> target_host = main_func->GetAttr<Target>(tvm::attr::kTarget);
     ICHECK(target_host) << "main function does not have a target attr";
@@ -209,7 +209,7 @@ class PoolInfoAssigner {
 WorkspacePoolInfo PoolInfoAssigner::CreateDefaultWorkspaceMemoryPool(const tvm::IRModule& module) {
   VLOG(1) << "Creating default memory pool for:" << std::endl << PrettyPrint(module);
   Map<Target, String> target_access;
-  auto main_func = Downcast<tvm::BaseFunc>(module->Lookup("run_model"));
+  auto main_func = Downcast<tvm::BaseFunc>(module->Lookup("main"));
   Target target_host = main_func->GetAttr<Target>(tvm::attr::kTarget).value();
   for (const auto& kv : module->functions) {
     BaseFunc func = kv.second;

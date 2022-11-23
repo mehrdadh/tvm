@@ -590,7 +590,7 @@ RelaxPoolAllocationToOffsetConverter::UpdateFunctionScopeInfo(const Function& or
 
 std::pair<IRModule, tvm::usmp::PoolAllocationInserterPassData>
 RelaxPoolAllocationToOffsetConverter::operator()() {
-  GlobalVar gv = pass_data_.module_->GetGlobalVar("run_model");
+  GlobalVar gv = pass_data_.module_->GetGlobalVar("main");
   auto main_func = Downcast<relax::Function>(pass_data_.module_->Lookup(gv));
   ScopeInfo si = UpdateFunctionScopeInfo(main_func);
   pass_data_.scope_stack.push(si);
@@ -610,7 +610,7 @@ RelaxPoolAllocationToOffsetConverter::operator()() {
   } else {
     main_func = Function(params, main_func_body, main_func->ret_type, main_func->ret_shape,
                          DictAttrs(), main_func->span);
-    main_func = WithAttr(main_func, tvm::attr::kGlobalSymbol, String("run_model"));
+    main_func = WithAttr(main_func, tvm::attr::kGlobalSymbol, String("main"));
   }
   pass_data_.module_->Update(gv, main_func);
   if (!pass_data_.emit_tvmscript_printable_) {
@@ -632,7 +632,7 @@ class RelaxPoolAllocationInserter : public relax::ExprMutator {
         pool_allocation_inserter_pass_data_(pool_allocations_to_offsets_pass_data) {}
 
   IRModule operator()() {
-    GlobalVar gv = pass_data_.module_->GetGlobalVar("run_model");
+    GlobalVar gv = pass_data_.module_->GetGlobalVar("main");
     auto main_func = Downcast<relax::Function>(pass_data_.module_->Lookup(gv));
 
     for (const tir::usmp::AllocatedPoolInfo& allocated_pool_info :

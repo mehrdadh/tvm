@@ -44,7 +44,7 @@ from tvm.script import relax as R
 class TestLinear:
 
     @R.function
-    def run_model(input: R.Tensor((16, 16), "uint8")):
+    def main(input: R.Tensor((16, 16), "uint8")):
         # block 0
         tsid_10 = R.builtin.alloc_tensor((1, 1), dtype="int16", runtime_device_index=0)
         tsid_11 = R.builtin.alloc_tensor((9408, 1), dtype="int16", runtime_device_index=0)
@@ -64,7 +64,7 @@ class TestLinear:
 @tvm.script.ir_module
 class TestLinearExpected:
     @R.function
-    def run_model(input: R.Tensor((16, 16), "uint8"), output: R.Tensor((16, 16), "int32")):
+    def main(input: R.Tensor((16, 16), "uint8"), output: R.Tensor((16, 16), "int32")):
         # block 0
         tsid_10 = R.builtin.alloc_tensor((1, 1), dtype="int16", runtime_device_index=0)
         tsid_11 = R.builtin.alloc_tensor((9408, 1), dtype="int16", runtime_device_index=0)
@@ -85,7 +85,7 @@ def test_linear():
     after_mod = tvm.relax.transform.ConvertRelaxMainToDPS(attach_io_to_attrs=False)(before_mod)
     expected_mod = TestLinearExpected
 
-    print(dump_ast(expected_mod["run_model"]))
+    print(dump_ast(expected_mod["main"]))
 
     for gv, ref_func in expected_mod.functions.items():
         actual_func = after_mod[gv.name_hint]
@@ -98,7 +98,7 @@ def test_linear():
 @tvm.script.ir_module
 class AlreadyInDPS:
     @R.function
-    def run_model(x: R.Tensor((5, 7), "float32"), output: R.Tensor((5, 7), "float32")) -> R.Tensor(None, "int32", ndim = 0):
+    def main(x: R.Tensor((5, 7), "float32"), output: R.Tensor((5, 7), "float32")) -> R.Tensor(None, "int32", ndim = 0):
         # block 0
         _ = R.call_packed("tir_func", x, output, type_args=(R.Tensor(ndim=2, dtype="float32")))
         return R.const(0)
@@ -107,7 +107,7 @@ class AlreadyInDPS:
 @tvm.script.ir_module
 class AlreadyInDPSExpected:
     @R.function
-    def run_model(x: R.Tensor((5, 7), "float32"), output: R.Tensor((5, 7), "float32")) -> R.Tensor(None, "int32", ndim = 0):
+    def main(x: R.Tensor((5, 7), "float32"), output: R.Tensor((5, 7), "float32")) -> R.Tensor(None, "int32", ndim = 0):
         # block 0
         _ = R.call_packed("tir_func", x, output, type_args=(R.Tensor(ndim=2, dtype="float32")))
         return R.const(0)
@@ -130,7 +130,7 @@ def test_already_in_dps():
 @tvm.script.ir_module
 class TestTupleBothAlloc:
     @R.function
-    def run_model(input: R.Tensor((16, 16), "uint8")) -> R.Tuple(R.Tensor(None, "float32", ndim = 2), R.Tensor(None, "int32", ndim = 2)):
+    def main(input: R.Tensor((16, 16), "uint8")) -> R.Tuple(R.Tensor(None, "float32", ndim = 2), R.Tensor(None, "int32", ndim = 2)):
         # block 0
         tsid_11 = R.builtin.alloc_tensor((1, 1), dtype="int8", runtime_device_index=0)
         alloc = R.builtin.alloc_tensor((5, 7), dtype="float32", runtime_device_index=0)
@@ -151,7 +151,7 @@ class TestTupleBothAlloc:
 @tvm.script.ir_module
 class TestTupleBothAllocExpected:
     @R.function
-    def run_model(input: R.Tensor((16, 16), "uint8"), output_1: R.Tensor((5, 7), "float32"), output_2: R.Tensor((802816, 1), "int32")) -> R.Tensor(None, "int32", ndim = 0):
+    def main(input: R.Tensor((16, 16), "uint8"), output_1: R.Tensor((5, 7), "float32"), output_2: R.Tensor((802816, 1), "int32")) -> R.Tensor(None, "int32", ndim = 0):
         # block 0
         tsid_11 = R.builtin.alloc_tensor((1, 1), dtype="int8", runtime_device_index=0)
         _ = R.call_packed("prim_func_2", input, tsid_11, output_1, type_args=(R.Tensor(ndim=2, dtype="float32")))
@@ -178,7 +178,7 @@ def test_tuple_both_alloc():
 @tvm.script.ir_module
 class TestTupleOneAllocOneParam:
     @R.function
-    def run_model(input: R.Tensor((16, 16), "uint8")) -> R.Tuple(R.Tensor(None, "uint8", ndim = 2), R.Tensor(None, "int32", ndim = 2)):
+    def main(input: R.Tensor((16, 16), "uint8")) -> R.Tuple(R.Tensor(None, "uint8", ndim = 2), R.Tensor(None, "int32", ndim = 2)):
         # block 0
         tsid_11 = R.builtin.alloc_tensor((1, 1), dtype="int8", runtime_device_index=0)
         alloc = R.builtin.alloc_tensor((5, 7), dtype="float32", runtime_device_index=0)
@@ -199,7 +199,7 @@ class TestTupleOneAllocOneParam:
 @tvm.script.ir_module
 class TestTupleOneAllocOneParamExpected:
     @R.function
-    def run_model(input: R.Tensor((16, 16), "uint8"), output_2: R.Tensor((802816, 1), "int32")) -> R.Tensor(None, "int32", ndim = 0):
+    def main(input: R.Tensor((16, 16), "uint8"), output_2: R.Tensor((802816, 1), "int32")) -> R.Tensor(None, "int32", ndim = 0):
         # block 0
         tsid_11 = R.builtin.alloc_tensor((1, 1), dtype="int8", runtime_device_index=0)
         alloc = R.builtin.alloc_tensor((5, 7), dtype="float32", runtime_device_index=0)
@@ -229,7 +229,7 @@ def test_tuple_one_alloc_one_param():
 @tvm.script.ir_module
 class TestTupleBothParam:
     @R.function
-    def run_model(input: R.Tensor((16, 16), "uint8"), input2: R.Tensor((16, 16), "int32")) -> R.Tuple(R.Tensor(None, "uint8", ndim = 2), R.Tensor(None, "int32", ndim = 2)):
+    def main(input: R.Tensor((16, 16), "uint8"), input2: R.Tensor((16, 16), "int32")) -> R.Tuple(R.Tensor(None, "uint8", ndim = 2), R.Tensor(None, "int32", ndim = 2)):
         # block 0
         tsid_11 = R.builtin.alloc_tensor((1, 1), dtype="int8", runtime_device_index=0)
         alloc = R.builtin.alloc_tensor((5, 7), dtype="float32", runtime_device_index=0)
@@ -246,7 +246,7 @@ class TestTupleBothParam:
 @tvm.script.ir_module
 class TestTupleBothParamExpected:
     @R.function
-    def run_model(input: R.Tensor((16, 16), "uint8"), input2: R.Tensor((16, 16), "int32")) -> R.Tensor(None, "int32", ndim = 0):
+    def main(input: R.Tensor((16, 16), "uint8"), input2: R.Tensor((16, 16), "int32")) -> R.Tensor(None, "int32", ndim = 0):
         # block 0
         tsid_11 = R.builtin.alloc_tensor((1, 1), dtype="int8", runtime_device_index=0)
         alloc = R.builtin.alloc_tensor((5, 7), dtype="float32", runtime_device_index=0)

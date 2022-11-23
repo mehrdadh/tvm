@@ -65,7 +65,7 @@ IRModule PlanMemory(const IRModule& mod, String algo, bool use_workspace_io,
     LOG(FATAL) << "No support for use_workspace_io at the moment.";
   }
   module = tvm::transform::AssignPoolInfo()(module);
-  auto main_func = Downcast<relax::Function>(module->Lookup("run_model"));
+  auto main_func = Downcast<relax::Function>(module->Lookup("main"));
   tir::usmp::BufferInfoAnalysis buffer_info_analysis = tvm::ExtractBufferInfo(main_func, module);
   Array<BufferInfo> buffer_info_arr =
       ConvertToArrayOfBufferInfo(buffer_info_analysis->buffer_info_stmts);

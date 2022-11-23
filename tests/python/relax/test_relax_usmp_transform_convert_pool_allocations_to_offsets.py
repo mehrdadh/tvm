@@ -89,7 +89,7 @@ def _append_type_args(mod, dtypes):
             return super().visit_call_(op)
 
     relax_visitor = RelaxAddTypeArgs()
-    mod["run_model"] = relax_visitor.visit_expr(mod["run_model"])
+    mod["main"] = relax_visitor.visit_expr(mod["main"])
     return mod
 
 
@@ -114,7 +114,7 @@ def _assign_poolinfos_to_allocates_in_irmodule(mod, pool_infos, constant_pool_in
             return super().visit_call_(op)
 
     relax_visitor = RelaxFuncAnnotate()
-    mod["run_model"] = relax_visitor.visit_expr(mod["run_model"])
+    mod["main"] = relax_visitor.visit_expr(mod["main"])
 
     ret = tvm.IRModule()
     for global_var, basefunc in mod.functions.items():
@@ -195,7 +195,7 @@ class LinearStructure:
                 T_cast_7[(((ax0_ax1_fused_5*3584) + (ax2_5*64)) + ax3_3)] = T.cast(tensor_2[(((ax0_ax1_fused_5*3584) + (ax2_5*64)) + ax3_3)], "int16")
 
     @R.function
-    def run_model(input: R.Tensor((16, 16), "uint8")) -> R.Tensor:
+    def main(input: R.Tensor((16, 16), "uint8")) -> R.Tensor:
         tsid_10 = R.builtin.alloc_tensor((1, 1), runtime_device_index=0, dtype="int16")
         tsid_11 = R.builtin.alloc_tensor((9408, 1), runtime_device_index=0, dtype="int16")
         tsid_12 = R.builtin.alloc_tensor((64, 1), runtime_device_index=0, dtype="int32")
@@ -211,7 +211,7 @@ class LinearStructure:
 @tvm.script.ir_module
 class LinearStructurePlanned:
     @R.function
-    def run_model(input: R.Tensor((16, 16), "uint8"), output: R.Tensor((16, 16), "int32"), fast_memory_0_pool: R.Object, slow_memory_1_pool: R.Object) -> R.Tensor(None, "int32", ndim = 0):
+    def main(input: R.Tensor((16, 16), "uint8"), output: R.Tensor((16, 16), "int32"), fast_memory_0_pool: R.Object, slow_memory_1_pool: R.Object) -> R.Tensor(None, "int32", ndim = 0):
         # block 0
         tsid_10: R.Tensor((1, 1), "int16") = R.memory.alloc_tensor(fast_memory_0_pool, (1, 1), offset=0, dtype="int16")
         tsid_11: R.Tensor((9408, 1), "int16") = R.memory.alloc_tensor(fast_memory_0_pool, (9408, 1), offset=0, dtype="int16")
@@ -303,7 +303,7 @@ def test_mobilenet_subgraph():
     relax_mod = _assign_poolinfos_to_allocates_in_irmodule(
         relax_mod, [fast_memory_pool, slow_memory_pool]
     )
-    main_func = relax_mod["run_model"]
+    main_func = relax_mod["main"]
     buffer_analysis = tvm.relax.analysis.extract_buffer_info(main_func, relax_mod)
     buffer_info_map = buffer_analysis.buffer_info_stmts
 
@@ -416,7 +416,7 @@ class ResnetStructure:
                     T_cast_7[ax0_ax1_fused_ax2_fused_3 * 256 + ax3_outer_2 * 64 + ax3_inner_4] = T.cast(T.max(T.min(T.q_multiply_shift(T.cast(T.cast(T.max(T.min(T.q_multiply_shift(Conv2dOutput_3[ax3_inner_4] + placeholder_26[ax3_outer_2 * 64 + ax3_inner_4], 1343014664, 31, -8, dtype="int32") + 136, 255), 0), "uint8"), "int32") - 136, 1073903788, 31, 1, dtype="int32") + placeholder_28[ax0_ax1_fused_ax2_fused_3 * 256 + ax3_outer_2 * 64 + ax3_inner_4], 255), 0), "uint8")
 
     @R.function
-    def run_model(input: R.Tensor((16, 16), "uint8")) -> R.Tensor:
+    def main(input: R.Tensor((16, 16), "uint8")) -> R.Tensor:
         param_p0 = R.builtin.alloc_tensor((64, 1), runtime_device_index=0, dtype="int32")
         param_p3 = R.builtin.alloc_tensor((4096, 1), runtime_device_index=0, dtype="int16")
         param_p4 = R.builtin.alloc_tensor((64, 1), runtime_device_index=0, dtype="int32")
@@ -564,7 +564,7 @@ class ResnetStructurePlanned:
                         T_cast_5[ax0_ax1_fused_ax2_fused_1 * 64 + ax3_inner_2] = T.cast(T.cast(T.max(T.min(T.q_multiply_shift(Conv2dOutput_1_let[ax3_inner_2] + placeholder_15[ax3_inner_2], 1608879842, 31, -7, dtype="int32"), 255), 0), "uint8"), "int16")
 
     @R.function
-    def run_model(input: R.Tensor((16, 16), "uint8"), output: R.Tensor((16, 16), "int32"), global_workspace_0_pool: R.Object) -> R.Tensor(None, "int32", ndim = 0):
+    def main(input: R.Tensor((16, 16), "uint8"), output: R.Tensor((16, 16), "int32"), global_workspace_0_pool: R.Object) -> R.Tensor(None, "int32", ndim = 0):
         # block 0
         param_p0: R.Tensor((64, 1), "int32") = R.memory.alloc_tensor(global_workspace_0_pool, (64, 1), offset=6480000, dtype="int32")
         param_p3: R.Tensor((4096, 1), "int16") = R.memory.alloc_tensor(global_workspace_0_pool, (4096, 1), offset=7920000, dtype="int16")
@@ -610,7 +610,7 @@ def test_resnet_subgraph():
     relax_mod = _assign_targets_to_relaxfuncs_irmodule(relax_mod, target)
 
     relax_mod = _assign_poolinfos_to_allocates_in_irmodule(relax_mod, [global_workspace_pool])
-    main_func = relax_mod["run_model"]
+    main_func = relax_mod["main"]
     buffer_analysis = tvm.relax.analysis.extract_buffer_info(main_func, relax_mod)
     buffer_info_map = buffer_analysis.buffer_info_stmts
 
@@ -655,7 +655,7 @@ class TensorIntrinStructure:
         dense[0] = T.q_multiply_shift(dense[0], 1608879842, 31, -7, dtype="int32")
 
     @R.function
-    def run_model(input: R.Tensor((1, 1), "uint8")) -> R.Tensor:
+    def main(input: R.Tensor((1, 1), "uint8")) -> R.Tensor:
         _ = relax.call_tir("tensor_intrin_primfunc", (), (1, 1), dtype="int32")
         output = R.builtin.alloc_tensor((1, 1), runtime_device_index=0, dtype="int8")
         return output
@@ -682,7 +682,7 @@ class TensorIntrinStructurePlanned:
             dense_let[0] = T.q_multiply_shift(dense_let[0], 1608879842, 31, -7, dtype="int32")
 
     @R.function
-    def run_model(input: R.Tensor((1, 1), "uint8"), output: R.Tensor((1, 1), "int8"), global_workspace_0_pool: R.Object) -> R.Tensor(None, "int32", ndim = 0):
+    def main(input: R.Tensor((1, 1), "uint8"), output: R.Tensor((1, 1), "int8"), global_workspace_0_pool: R.Object) -> R.Tensor(None, "int32", ndim = 0):
         # block 0
         alloc: R.Tensor((1, 1), "int32") = R.memory.alloc_tensor(global_workspace_0_pool, (1, 1), offset=0, dtype="int32")
         _: R.Tensor(_, "int32", ndim = 2) = R.call_packed("tensor_intrin_primfunc", (), alloc, global_workspace_0_pool, type_args=(R.Tensor(ndim=2, dtype="int32")))
@@ -710,7 +710,7 @@ def test_tensor_intrin():
     relax_mod = _assign_targets_to_relaxfuncs_irmodule(relax_mod, target)
 
     relax_mod = _assign_poolinfos_to_allocates_in_irmodule(relax_mod, [global_workspace_pool])
-    main_func = relax_mod["run_model"]
+    main_func = relax_mod["main"]
     buffer_analysis = tvm.relax.analysis.extract_buffer_info(main_func, relax_mod)
     buffer_info_map = buffer_analysis.buffer_info_stmts
 

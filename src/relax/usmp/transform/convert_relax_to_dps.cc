@@ -36,7 +36,7 @@ class ConvertRelaxMainToDPS : public ExprMutator {
       : mod_(mod), attach_io_to_attrs_(attach_io_to_attrs) {}
 
   IRModule operator()() {
-    GlobalVar gv = mod_->GetGlobalVar("run_model");
+    GlobalVar gv = mod_->GetGlobalVar("main");
     auto main_func = Downcast<relax::Function>(mod_->Lookup(gv));
     ICHECK(main_func.defined()) << "main function is not in the module";
 
