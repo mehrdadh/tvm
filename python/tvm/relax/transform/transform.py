@@ -365,6 +365,10 @@ def ConvertRelaxMainToDPS(attach_io_to_attrs: bool = True) -> tvm.ir.transform.P
     return _ffi_api.ConvertRelaxMainToDPS(attach_io_to_attrs)
 
 
+def UnifiedStaticMemoryPlanner() -> tvm.ir.transform.Pass:
+    return _ffi_api.UnifiedStaticMemoryPlanner()
+
+
 def _wrap_class_function_pass(pass_cls, pass_info):
     """Wrap a python class as function pass."""
 

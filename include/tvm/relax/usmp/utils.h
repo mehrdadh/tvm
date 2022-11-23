@@ -28,6 +28,25 @@
 #include "tvm/ir/expr.h"
 
 namespace tvm {
+
+/*!
+ * \brief PassContext option to enable the USMP
+ */
+constexpr const char* kUSMPRelaxEnableOption = "relax.usmp.enable";
+/*!
+ * \brief PassContext option to select the memory planning algorithm in USMP
+ */
+constexpr const char* kUSMPRelaxAlgorithmOption = "relax.usmp.algorithm";
+/*!
+ * \brief PassContext option to enable placing I/O tensors in the workspace
+ */
+constexpr const char* kUSMPRelaxUseWorkspaceIO = "relax.usmp.use_workspace_io";
+/*!
+ * \brief PassContext option to specify a custom memory planning algorithm in USMP.
+ * The algorithm should be provided as registered PackedFunc with the name tir.usmp.algorithm.NAME
+ */
+constexpr const char* kUSMPRelaxCustomAlgorithmOption = "relax.usmp.custom_algorithm";
+
 namespace relax {
 namespace usmp {
 

@@ -25,6 +25,9 @@
  * objects that contains information about tir.allocate nodes and liveness
  * conflicts between other tir.allocate nodes.
  */
+
+#include <tvm/relax/usmp/analysis.h>
+
 #include <tvm/relax/expr.h>
 #include <tvm/relax/utils.h>
 #include <tvm/relay/executor.h>

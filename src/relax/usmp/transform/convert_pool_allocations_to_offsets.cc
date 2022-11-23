@@ -26,10 +26,8 @@
 #include <tvm/runtime/device_api.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/function.h>
-#include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
-#include <tvm/tir/transform.h>
-#include <tvm/tir/usmp/transform.h>
+#include <tvm/relax/usmp/transform.h>
 #include <tvm/tir/usmp/utils.h>
 
 #include <stack>
@@ -37,7 +35,6 @@
 #include "tvm/relax/attrs/memory.h"
 #include "tvm/relax/expr_functor.h"
 #include "tvm/relax/usmp/utils.h"
-#include "tvm/tir/usmp/utils.h"
 
 namespace tvm {
 

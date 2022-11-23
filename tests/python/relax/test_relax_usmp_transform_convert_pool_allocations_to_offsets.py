@@ -734,5 +734,29 @@ def test_tensor_intrin():
         tvm.ir.assert_structural_equal(actual_func, ref_func)
 
 
+def test_simple():
+    target = Target("c")
+    relax_mod = LinearStructure
+    passes = [
+        relax.transform.ToNonDataflow(),
+        relax.transform.CallTIRRewrite(),
+        relax.transform.ConvertRelaxMainToDPS(attach_io_to_attrs=False),
+    ]
+    seq = tvm.transform.Sequential(passes)
+    relax_mod = seq(relax_mod)
+
+    global_workspace_pool = WorkspacePoolInfo(
+        "global_workspace",
+        [target],
+    )
+    relax_mod = _assign_targets_to_relaxfuncs_irmodule(relax_mod, target)
+    relax_mod = _assign_poolinfos_to_allocates_in_irmodule(relax_mod, [global_workspace_pool])
+    relax_mod = relax_mod.with_attr("executor", tvm.relay.backend.Executor("aot"))
+    relax_mod = relax_mod.with_attr("runtime", tvm.relay.backend.Runtime("crt"))
+
+    after_mod = tvm.relax.transform.UnifiedStaticMemoryPlanner()(relax_mod)
+    print(after_mod)
+
+
 if __name__ == "__main__":
     pytest.main([__file__] + sys.argv[1:])

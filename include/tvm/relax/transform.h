@@ -180,6 +180,9 @@ TVM_DLL Pass RemoveUnusedFunctions(Array<runtime::String> entry_functions);
 TVM_DLL Pass RunCodegen(Optional<Array<runtime::String>> target_codegens,
                         Array<runtime::String> entry_functions);
 
+
+TVM_DLL Pass UnifiedStaticMemoryPlanner();
+
 }  // namespace transform
 }  // namespace relax
 }  // namespace tvm
