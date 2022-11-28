@@ -47,10 +47,14 @@ def alloc_storage(
     result : Call
         A relax Call, which gets the allocated storage.
     """
-    return _ffi_api.alloc_storage(size, virtual_device_index, storage_scope, dtype, pool_info_name)  # type: ignore
+    return _ffi_api.alloc_storage(
+        size, virtual_device_index, storage_scope, dtype, pool_info_name
+    )  # type: ignore
 
 
-def alloc_tensor(storage: Expr, shape: Union[ShapeExpr, PrimExpr, List[PrimExpr]], offset: int, dtype: str) -> Call:
+def alloc_tensor(
+    storage: Expr, shape: Union[ShapeExpr, PrimExpr, List[PrimExpr]], offset: int, dtype: str
+) -> Call:
     """Construct a Call to allocate a tensor on a certain storage starting from the given offset.
 
     Parameters

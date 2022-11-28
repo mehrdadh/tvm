@@ -25,8 +25,8 @@
 #ifndef TVM_RELAX_USMP_TRANSFORM_H_
 #define TVM_RELAX_USMP_TRANSFORM_H_
 
-#include <tvm/relax/usmp/utils.h>
 #include <tvm/ir/transform.h>
+#include <tvm/relax/usmp/utils.h>
 #include <tvm/tir/stmt.h>
 #include <tvm/tir/usmp/utils.h>
 
@@ -46,8 +46,7 @@ using Pass = tvm::transform::Pass;
  */
 TVM_DLL Pass ConvertPoolAllocationsToOffsets(
     const Map<runtime::ObjectRef, tir::usmp::PoolAllocation>& pool_allocations,
-                                             Bool emit_tvmscript_printable = Bool(false),
-                                             Bool insert_storage_allocations = Bool(true));
+    Bool emit_tvmscript_printable = Bool(false), Bool insert_storage_allocations = Bool(true));
 
 /*!
  * \brief Assign PoolInfo objects to tir.allocate nodes depending on the PrimFunc's target

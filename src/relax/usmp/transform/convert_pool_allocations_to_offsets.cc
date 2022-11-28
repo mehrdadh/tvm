@@ -23,11 +23,11 @@
  */
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/relax/usmp/transform.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/stmt_functor.h>
-#include <tvm/relax/usmp/transform.h>
 #include <tvm/tir/usmp/utils.h>
 
 #include <stack>
@@ -263,8 +263,8 @@ PrimFunc TIRPoolAllocationToOffsetConverter::CreatePrimFuncWithPoolParams(
     for (BaseExpr base_expr : si.params) {
       params.push_back(runtime::Downcast<Var>(base_expr));
     }
-    PrimFunc ret = PrimFunc(params, new_body, original_primfunc->ret_type, si.buffer_map,
-                            original_attrs);
+    PrimFunc ret =
+        PrimFunc(params, new_body, original_primfunc->ret_type, si.buffer_map, original_attrs);
     if (!pass_data_.emit_tvmscript_printable_) {
       ret = WithAttr(ret, tvm::attr::kPoolArgs, si.allocated_pools);
     }
@@ -524,13 +524,15 @@ Expr RelaxPoolAllocationToOffsetConverter::VisitExpr_(const CallNode* op) {
   }
 
   // Rewrite call to TIR PrimFunc
-  if (op->op->IsInstance<ExternFuncNode>()) {
-    String func_name = runtime::Downcast<ExternFunc>(op->op)->global_symbol;
+  if (op->op->IsInstance<ExternFuncNode>() || op->op->IsInstance<GlobalVarNode>()) {
+    String func_name = op->op->IsInstance<ExternFuncNode>()
+                           ? runtime::Downcast<ExternFunc>(op->op)->global_symbol
+                           : runtime::Downcast<GlobalVar>(op->op)->name_hint;
     Array<Expr> new_args;
     if (pass_data_.module_->ContainGlobalVar(func_name) &&
         pass_data_.module_->Lookup(func_name)->IsInstance<tir::PrimFuncNode>()) {
       GlobalVar gv = pass_data_.module_->GetGlobalVar(func_name);
-      tir::PrimFunc prim_func = runtime::Downcast<tir::PrimFunc>(pass_data_.module_->Lookup(gv));
+      auto prim_func = runtime::Downcast<tir::PrimFunc>(pass_data_.module_->Lookup(gv));
 
       tir::usmp::TIRPoolAllocationToOffsetConverter tir_offset_converter =
           tir::usmp::TIRPoolAllocationToOffsetConverter(pass_data_);
@@ -539,17 +541,13 @@ Expr RelaxPoolAllocationToOffsetConverter::VisitExpr_(const CallNode* op) {
 
       new_args = AppendPoolParamsToArgs(op->args);
     } else {
+      if (op->op->IsInstance<GlobalVarNode>()) {
+        auto global_var = Downcast<GlobalVar>(op->op);
+        ICHECK(false) << "Calls to Relax functions are not supported: " << global_var->name_hint;
+      }
       new_args = Array<Expr>(op->args.begin(), op->args.end());
     }
     return Call(op->op, new_args, op->attrs, op->type_args, op->span);
-  }
-  if (op->op->IsInstance<relax::FunctionNode>()) {
-    auto func = Downcast<relax::Function>(op->op);
-    ICHECK(false) << "Calls to Relax functions are not supported." << PrettyPrint(func);
-  }
-  if (op->op->IsInstance<GlobalVarNode>()) {
-    auto global_var = Downcast<GlobalVar>(op->op);
-    ICHECK(false) << "Calls to Relax functions are not supported: " << global_var->name_hint;
   }
   return ExprMutator::VisitExpr_(op);
 }
@@ -685,7 +683,8 @@ class RelaxPoolAllocationInserter : public relax::ExprMutator {
     attrs->dtype = DataType::UInt(8);
     attrs->pool_info_name = allocated_pool_info->pool_info->pool_name;
     int32_t pool_size = allocated_pool_info->allocated_size.IntValue();
-    Call alloc_storage_call = Call(alloc_storage_op, {ShapeExpr({ PrimExpr(pool_size) })}, Attrs(attrs), {}, Span());
+    Call alloc_storage_call =
+        Call(alloc_storage_op, {ShapeExpr({PrimExpr(pool_size)})}, Attrs(attrs), {}, Span());
     return alloc_storage_call;
   }
 

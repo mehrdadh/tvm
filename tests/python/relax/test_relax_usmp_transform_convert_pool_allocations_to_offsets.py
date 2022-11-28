@@ -200,9 +200,9 @@ class LinearStructure:
         tsid_11 = R.builtin.alloc_tensor((9408, 1), runtime_device_index=0, dtype="int16")
         tsid_12 = R.builtin.alloc_tensor((64, 1), runtime_device_index=0, dtype="int32")
 
-        lv0 = relax.call_tir("tvmgen_default_fused_cast_subtract", (input, tsid_10), (301056, 1), dtype="int32")
+        lv0 = relax.call_tir(tvmgen_default_fused_cast_subtract, (input, tsid_10), (301056, 1), dtype="int32")
         lv1 = relax.call_tir("tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_clip_cast", (lv0, tsid_11, tsid_12), (802816, 1), dtype="int32")
-        output = relax.call_tir("tvmgen_default_fused_nn_max_pool2d_cast", (lv1), (16, 16), dtype="int32")
+        output = relax.call_tir(tvmgen_default_fused_nn_max_pool2d_cast, (lv1), (16, 16), dtype="int32")
         return output
 # fmt: on
 
@@ -211,19 +211,19 @@ class LinearStructure:
 @tvm.script.ir_module
 class LinearStructurePlanned:
     @R.function
-    def main(input: R.Tensor((16, 16), "uint8"), output: R.Tensor((16, 16), "int32"), fast_memory_0_pool: R.Object, slow_memory_1_pool: R.Object) -> R.Tensor(None, "int32", ndim = 0):
+    def main(input: R.Tensor((16, 16), "uint8"), output: R.Tensor((16, 16), "int32"), fast_memory_0_pool: R.Object, slow_memory_1_pool: R.Object) -> R.Tuple():
         # block 0
         tsid_10: R.Tensor((1, 1), "int16") = R.memory.alloc_tensor(fast_memory_0_pool, (1, 1), offset=0, dtype="int16")
         tsid_11: R.Tensor((9408, 1), "int16") = R.memory.alloc_tensor(fast_memory_0_pool, (9408, 1), offset=0, dtype="int16")
         tsid_12: R.Tensor((64, 1), "int32") = R.memory.alloc_tensor(fast_memory_0_pool, (64, 1), offset=18816, dtype="int32")
         alloc: R.Tensor((301056, 1), "int32") = R.memory.alloc_tensor(slow_memory_1_pool, (301056, 1), offset=0, dtype="int32")
-        _: R.Tensor(_, "int32", ndim = 2) = R.call_packed("tvmgen_default_fused_cast_subtract", input, tsid_10, alloc, fast_memory_0_pool, slow_memory_1_pool, type_args=(R.Tensor(ndim=2, dtype="int32")))
+        _ = tvmgen_default_fused_cast_subtract(input, tsid_10, alloc, fast_memory_0_pool, slow_memory_1_pool, type_args=(R.Tensor(ndim=2, dtype="int32")))
         lv0: R.Tensor((301056, 1), "int32") = alloc
         alloc1: R.Tensor((802816, 1), "int32") = R.memory.alloc_tensor(slow_memory_1_pool, (802816, 1), offset=0, dtype="int32")
         _1: R.Tensor(_, "int32", ndim = 2) = R.call_packed("tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_clip_cast", lv0, tsid_11, tsid_12, alloc1, fast_memory_0_pool, slow_memory_1_pool, type_args=(R.Tensor(ndim=2, dtype="int32")))
         lv1: R.Tensor((802816, 1), "int32") = alloc1
-        _2: R.Tensor(_, "int32", ndim = 2) = R.call_packed("tvmgen_default_fused_nn_max_pool2d_cast", lv1, output, fast_memory_0_pool, slow_memory_1_pool, type_args=(R.Tensor(ndim=2, dtype="int32")))
-        return R.const(0)
+        _2 = tvmgen_default_fused_nn_max_pool2d_cast(lv1, output, fast_memory_0_pool, slow_memory_1_pool, type_args=(R.Tensor(ndim=2, dtype="int32")))
+        return R.Tuple()
 
     @T.prim_func
     def tvmgen_default_fused_nn_max_pool2d_cast(placeholder_28: T.handle, T_cast_6: T.handle, fast_memory_6_var: T.Ptr[T.uint8], slow_memory_7_var: T.Ptr[T.uint8]) -> None:
@@ -564,7 +564,7 @@ class ResnetStructurePlanned:
                         T_cast_5[ax0_ax1_fused_ax2_fused_1 * 64 + ax3_inner_2] = T.cast(T.cast(T.max(T.min(T.q_multiply_shift(Conv2dOutput_1_let[ax3_inner_2] + placeholder_15[ax3_inner_2], 1608879842, 31, -7, dtype="int32"), 255), 0), "uint8"), "int16")
 
     @R.function
-    def main(input: R.Tensor((16, 16), "uint8"), output: R.Tensor((16, 16), "int32"), global_workspace_0_pool: R.Object) -> R.Tensor(None, "int32", ndim = 0):
+    def main(input: R.Tensor((16, 16), "uint8"), output: R.Tensor((16, 16), "int32"), global_workspace_0_pool: R.Object) -> R.Tuple():
         # block 0
         param_p0: R.Tensor((64, 1), "int32") = R.memory.alloc_tensor(global_workspace_0_pool, (64, 1), offset=6480000, dtype="int32")
         param_p3: R.Tensor((4096, 1), "int16") = R.memory.alloc_tensor(global_workspace_0_pool, (4096, 1), offset=7920000, dtype="int16")
@@ -588,7 +588,7 @@ class ResnetStructurePlanned:
         _3: R.Tensor(_, "int8", ndim = 2) = R.call_packed("tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_add_clip_cast_cast_subtract_fixed_point_15934180698220515269_", sid_7, param_p7, param_p8, alloc3, global_workspace_0_pool, type_args=(R.Tensor(ndim=2, dtype="int8")))
         sid_6: R.Tensor((5760000, 1), "int8") = alloc3
         _4: R.Tensor(_, "int32", ndim = 2) = R.call_packed("tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_add_clip_cast_cast_subtract_fixed_point_4200876283395191415_", sid_2, param_p1, param_p2, sid_6, output, global_workspace_0_pool, type_args=(R.Tensor(ndim=2, dtype="int32")))
-        return R.const(0)
+        return R.Tuple()
 # fmt: on
 
 
@@ -682,12 +682,12 @@ class TensorIntrinStructurePlanned:
             dense_let[0] = T.q_multiply_shift(dense_let[0], 1608879842, 31, -7, dtype="int32")
 
     @R.function
-    def main(input: R.Tensor((1, 1), "uint8"), output: R.Tensor((1, 1), "int8"), global_workspace_0_pool: R.Object) -> R.Tensor(None, "int32", ndim = 0):
+    def main(input: R.Tensor((1, 1), "uint8"), output: R.Tensor((1, 1), "int8"), global_workspace_0_pool: R.Object) -> R.Tuple():
         # block 0
         alloc: R.Tensor((1, 1), "int32") = R.memory.alloc_tensor(global_workspace_0_pool, (1, 1), offset=0, dtype="int32")
         _: R.Tensor(_, "int32", ndim = 2) = R.call_packed("tensor_intrin_primfunc", (), alloc, global_workspace_0_pool, type_args=(R.Tensor(ndim=2, dtype="int32")))
         _1: R.Tensor((1, 1), "int32") = alloc
-        return R.const(0)
+        return R.Tuple()
 
 # fmt: on
 

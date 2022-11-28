@@ -43,9 +43,12 @@ class ConvertRelaxMainToDPS : public ExprMutator {
     input_vars = main_func->params;
 
     Expr func_return = get_func_return(main_func);
-    if (func_return->IsInstance<relay::ConstantNode>()) {
-      VLOG(0) << "Function " << gv->name_hint << " is already in DPS or returns constant.";
-      return mod_;
+    if (func_return->IsInstance<relay::TupleNode>()) {
+      bool empty = runtime::Downcast<relay::Tuple>(func_return)->fields.empty();
+      if (empty) {
+        VLOG(0) << "Function " << gv->name_hint << " is already in DPS or returns empty Tuple.";
+        return mod_;
+      }
     }
     ICHECK(func_return->IsInstance<VarNode>() || func_return->IsInstance<relay::TupleNode>())
         << "Only support Var or Tuple returns for now.";
@@ -80,8 +83,8 @@ class ConvertRelaxMainToDPS : public ExprMutator {
     Array<Var> new_params = input_vars;
     new_params.insert(input_vars.end(), output_vars.begin(), output_vars.end());
 
-    Function new_func = Function(new_params, new_body, DynTensorType(0, DataType::Int(32)),
-                                 RuntimeDepShape(), main_func->attrs);
+    Function new_func =
+        Function(new_params, new_body, TupleType({}, Span()), RuntimeDepShape(), main_func->attrs);
     if (attach_io_to_attrs_) {
       new_func = WithAttr(new_func, "input_vars", input_vars);
       new_func = WithAttr(new_func, "output_vars", output_vars);
@@ -93,8 +96,8 @@ class ConvertRelaxMainToDPS : public ExprMutator {
 
  private:
   Expr VisitExpr_(const CallNode* op) override {
-    if (op->op->IsInstance<ExternFuncNode>()) {
-      // This is a call_packed call.
+    if (op->op->IsInstance<ExternFuncNode>() || op->op->IsInstance<GlobalVarNode>()) {
+      // This must be a call to a TIR func.
       Array<Expr> new_args;
       for (Expr arg : op->args) {
         if (arg->IsInstance<VarNode>() && return_alias_.count(runtime::Downcast<Var>(arg)) > 0) {
@@ -195,7 +198,8 @@ class ConvertRelaxMainToDPS : public ExprMutator {
         blocks.push_back(*iter);
       }
 
-      Expr body = build_return_const();
+      // Return of function is empty tuple.
+      Expr body = relay::Tuple({}, Span());
       return SeqExpr(blocks, body);
     }
     return runtime::GetRef<SeqExpr>(op);
@@ -209,14 +213,6 @@ class ConvertRelaxMainToDPS : public ExprMutator {
     const SeqExprNode* seq_expr = func->body.as<SeqExprNode>();
     ICHECK(seq_expr != nullptr) << "Expecting a function with a SeqExpr body";
     return seq_expr->body;
-  }
-
-  static relay::Constant build_return_const() {
-    auto value = runtime::NDArray::Empty({}, DataType::Int(32), {kDLCPU, 0});
-    auto zero_value = 0;
-    value.CopyFromBytes(&zero_value, sizeof(0));
-    auto constant = relay::Constant(value);
-    return constant;
   }
 
   bool visited_func_body = false;

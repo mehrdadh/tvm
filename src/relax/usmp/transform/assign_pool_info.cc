@@ -17,11 +17,10 @@
  * under the License.
  */
 
+#include <tvm/relax/transform.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/usmp/utils.h>
-
-#include <tvm/relax/transform.h>
 
 #include <string>
 #include <utility>
@@ -153,8 +152,7 @@ Expr RelaxPoolInfoAssigner::VisitExpr_(const CallNode* call) {
 class PoolInfoAssigner {
  public:
   explicit PoolInfoAssigner(const IRModule& module) {
-    auto main_func =
-        Downcast<relax::Function>(module->Lookup("main"));
+    auto main_func = Downcast<relax::Function>(module->Lookup("main"));
     ICHECK(main_func.defined()) << "main function is not in the module";
     Optional<Target> target_host = main_func->GetAttr<Target>(tvm::attr::kTarget);
     ICHECK(target_host) << "main function does not have a target attr";
@@ -255,8 +253,8 @@ IRModule PoolInfoAssigner::operator()() {
       TIRPoolInfoAssigner tir_pool_info_assigner =
           TIRPoolInfoAssigner(func, target_pool_infos_, target_const_pool_infos_);
       tir::Stmt body = tir_pool_info_assigner();
-      PrimFunc new_prim_func = PrimFunc(func->params, body, func->ret_type, func->buffer_map,
-                                        func->attrs);
+      PrimFunc new_prim_func =
+          PrimFunc(func->params, body, func->ret_type, func->buffer_map, func->attrs);
       mod_->Update(gv, new_prim_func);
     }
   }

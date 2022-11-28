@@ -88,8 +88,7 @@ IRModule PlanMemory(const IRModule& mod, String algo, bool use_workspace_io,
   Map<runtime::ObjectRef, PoolAllocation> pool_allocations = AssignStmtPoolAllocations(
       buffer_info_analysis->buffer_info_stmts, buffer_info_pool_allocations);
 
-  module = tvm::transform::ConvertPoolAllocationsToOffsets(pool_allocations,
-                                                           Bool(false),
+  module = tvm::transform::ConvertPoolAllocationsToOffsets(pool_allocations, Bool(false),
                                                            Bool(true))(module);
   if (use_workspace_io) {
     // TODO(gigiblender): Add support for use_workspace_io.

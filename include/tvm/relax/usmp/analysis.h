@@ -25,9 +25,9 @@
 #ifndef TVM_RELAX_USMP_ANALYSIS_H_
 #define TVM_RELAX_USMP_ANALYSIS_H_
 
-#include <tvm/tir/usmp/utils.h>
-#include <tvm/relax/expr.h>
 #include <tvm/ir/module.h>
+#include <tvm/relax/expr.h>
+#include <tvm/tir/usmp/utils.h>
 
 namespace tvm {
 

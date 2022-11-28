@@ -26,9 +26,8 @@
  * conflicts between other tir.allocate nodes.
  */
 
-#include <tvm/relax/usmp/analysis.h>
-
 #include <tvm/relax/expr.h>
+#include <tvm/relax/usmp/analysis.h>
 #include <tvm/relax/utils.h>
 #include <tvm/relay/executor.h>
 #include <tvm/runtime/device_api.h>
@@ -694,8 +693,10 @@ void RelaxInfoExtractor::VisitExpr_(const CallNode* op) {
     return;
   }
 
-  if (op->op->IsInstance<ExternFuncNode>()) {
-    String func_name = runtime::Downcast<ExternFunc>(op->op)->global_symbol;
+  if (op->op->IsInstance<ExternFuncNode>() || op->op->IsInstance<GlobalVarNode>()) {
+    String func_name = op->op->IsInstance<ExternFuncNode>()
+                           ? runtime::Downcast<ExternFunc>(op->op)->global_symbol
+                           : runtime::Downcast<GlobalVar>(op->op)->name_hint;
     if (pass_data_.functions_.find(func_name) != pass_data_.functions_.end()) {
       auto func = pass_data_.functions_.at(func_name);
       if (func->IsInstance<tir::PrimFuncNode>()) {
@@ -704,16 +705,10 @@ void RelaxInfoExtractor::VisitExpr_(const CallNode* op) {
         tir_info_extractor.UpdateAliases(actual_args, Downcast<tir::PrimFunc>(func));
         tir_info_extractor.VisitPrimFunc(Downcast<tir::PrimFunc>(func), GetRef<Call>(op));
         return;
+      } else {
+        ICHECK(false) << "Calls to Relax functions are not supported." << PrettyPrint(func);
       }
     }
-  }
-  if (op->op->IsInstance<relax::FunctionNode>()) {
-    auto func = Downcast<relax::Function>(op->op);
-    ICHECK(false) << "Calls to Relax functions are not supported." << PrettyPrint(func);
-  }
-  if (op->op->IsInstance<GlobalVarNode>()) {
-    auto global_var = Downcast<GlobalVar>(op->op);
-    ICHECK(false) << "Calls to Relax functions are not supported: " << global_var->name_hint;
   }
   ExprVisitor::VisitExpr_(op);
 }
