@@ -50,6 +50,12 @@ constexpr const char* kUSMPRelaxCustomAlgorithmOption = "relax.usmp.custom_algor
 namespace relax {
 namespace usmp {
 
+/*!
+ * \brief Calculate the size of the extents in bytes
+ *
+ * \param dtype The data type use by the tensor.
+ * \param extents The shape values.
+ */
 Integer CalculateRelaxExtentsSize(const DataType& dtype, const Array<PrimExpr>& extents);
 
 }  // namespace usmp

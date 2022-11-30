@@ -60,6 +60,7 @@ static std::unordered_map<String, std::function<Map<BufferInfo, PoolAllocation>(
 IRModule PlanMemory(const IRModule& mod, String algo, bool use_workspace_io,
                     Optional<String> opt_custom_algo) {
   IRModule module = mod->ShallowCopy();
+  module = tvm::transform::UniqueTIRFunctions()(module);
   // TODO(gigiblender): Add support for use_workspace_io.
   if (use_workspace_io) {
     LOG(FATAL) << "No support for use_workspace_io at the moment.";

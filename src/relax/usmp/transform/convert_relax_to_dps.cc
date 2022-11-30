@@ -25,6 +25,12 @@
 
 #include "tvm/relax/expr_functor.h"
 
+/*!
+ * \file relax/usmp/transform/convert_relax_to_dps.cc
+ * \brief This pass converts the Relax main function to destination-passing-style.
+ * The return of the DPS converted function is an empty tuple.
+ */
+
 namespace tvm {
 
 namespace relax {

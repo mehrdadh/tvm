@@ -267,7 +267,7 @@ def extract_buffer_info(main_func: Function, mod: IRModule):
 
     Returns
     -------
-    Map<relax::Expr, BufferInfo>
+    Dict[relay.Expr, BufferInfo]
         extracted buffer info objects
     """
     return _ffi_api.extract_buffer_info(main_func, mod)  # type: ignore

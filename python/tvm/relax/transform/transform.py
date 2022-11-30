@@ -365,6 +365,10 @@ def ConvertRelaxMainToDPS(attach_io_to_attrs: bool = True) -> tvm.ir.transform.P
     return _ffi_api.ConvertRelaxMainToDPS(attach_io_to_attrs)
 
 
+def UniqueTIRFunctions() -> tvm.ir.transform.Pass:
+    return _ffi_api.UniqueTIRFunctions()
+
+
 def UnifiedStaticMemoryPlanner() -> tvm.ir.transform.Pass:
     return _ffi_api.UnifiedStaticMemoryPlanner()
 

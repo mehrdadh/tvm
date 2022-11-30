@@ -58,6 +58,18 @@ TVM_DLL Pass ConvertPoolAllocationsToOffsets(
  */
 TVM_DLL Pass AssignPoolInfo();
 
+/*!
+ * \brief Make sure multiple calls to the same TIR function are removed.
+ *
+ * This means that for each call to a TIR function, a new TIR function with a mangled
+ * name and the same body is added to the IRModule.
+ *
+ * This is needed for LivenessAnalysis to run properly.
+ *
+ * @return the pass
+ */
+TVM_DLL Pass UniqueTIRFunctions();
+
 }  // namespace transform
 }  // namespace tvm
 

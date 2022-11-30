@@ -20,10 +20,10 @@
 /*!
  * \file relax/usmp/analysis/extract_buffer_info.cc
  *
- * \brief This analysis pass consumes a TIR IRModule with a main function
+ * \brief This analysis pass consumes a Relax/TIR IRModule with a main function
  * that defines a ordering in the callees to operators and produces BufferInfo
- * objects that contains information about tir.allocate nodes and liveness
- * conflicts between other tir.allocate nodes.
+ * objects that contains information about relax.builtin.alloc_tensor/tir.allocate nodes and
+ * liveness conflicts between other relax.builtin.alloc_tensor/tir.allocate nodes.
  */
 
 #include <tvm/relax/expr.h>
@@ -59,7 +59,7 @@ class BufferInfoExtractor;
 
 namespace usmp {
 /*!
- * \brief The class to keep buffer information used by this pass.
+ * \brief Class that keeps buffer information used by this pass.
  *
  * The Relax and TIR visitors would initiate the traversal from the main Relax
  * function and visit into the operator PrimFuncs. They will
@@ -200,7 +200,7 @@ class BufferInfoPassData {
   /*!
    * \brief The Relax main function calls to external functions to be able to
    * support BYOC. Therefore, this Map records functions that are present
-   * in the IRModule by name/
+   * in the IRModule by name.
    */
   Map<String, BaseFunc> functions_;
 
@@ -601,11 +601,6 @@ void RelaxInfoExtractor::VisitExpr_(const VarNode* op) {
                                                               pass_data_.current_stmt_idx_);
     }
     pass_data_.buffer_info_end_stmt_idx_[update_call].Set(allocate, pass_data_.current_stmt_idx_);
-
-    BufferInfoPassData::ScopeInfo& currect_scope_info = pass_data_.scope_stack_.top();
-    if (currect_scope_info.for_loop.defined()) {
-      currect_scope_info.allocate_nodes.insert(allocate);
-    }
   }
   ExprVisitor::VisitExpr_(op);
 }
@@ -679,10 +674,8 @@ void RelaxInfoExtractor::RecordAllocateNodeInfo(const VarBindingNode* op) {
 }
 
 void RelaxInfoExtractor::VisitAllocTensorVarBinding(const VarBindingNode* op) {
-  BufferInfoPassData::ScopeInfo& current_scope_info = pass_data_.scope_stack_.top();
   RecordAllocateNodeInfo(op);
   ExprVisitor::VisitBinding_(op);
-  current_scope_info.allocate_nodes.erase(op->var);
 }
 
 void RelaxInfoExtractor::VisitExpr_(const CallNode* op) {

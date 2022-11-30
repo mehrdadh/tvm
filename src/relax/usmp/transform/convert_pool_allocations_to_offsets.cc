@@ -18,8 +18,9 @@
  */
 
 /*!
- * \file tir/analysis/usmp/transform/convert_pool_allocations_to_offsets.cc
- * \brief This pass would convert the pool allocations to offsets from pools
+ * \file relax/usmp/transform/convert_pool_allocations_to_offsets.cc
+ * \brief This pass would convert the pool allocations to offsets from pools for
+ * both Relax and TIR.
  */
 
 #include <tvm/arith/analyzer.h>
@@ -40,7 +41,7 @@ namespace tvm {
 
 namespace tir::usmp {
 class TIRPoolAllocationToOffsetConverter;
-}
+}  // namespace tir::usmp
 
 namespace relax::usmp {
 class RelaxPoolAllocationToOffsetConverter;
@@ -56,13 +57,13 @@ class PoolAllocationsToOffsetsPassData {
    * signature is kept while body of the function is mutated
    */
   struct ScopeInfo {
-    // tir::Var or relax::Var.
+    // Can be tir::Var or relax::Var.
     Array<BaseExpr> params;
-    // tir::Var or relax::Var.
+    // Can be tir::Var or relax::Var.
     // Can point to either a tir parameter or a relax var bound to a relax.memory.alloc_storage
     Map<PoolInfo, BaseExpr> pools_to_var;
     Array<tir::usmp::AllocatedPoolInfo> allocated_pools;
-    // Only used in TIR.
+    // Only used in TIR functions.
     Map<tir::Var, tir::Buffer> buffer_map;
   };
 
@@ -100,7 +101,6 @@ class PoolAllocationsToOffsetsPassData {
   int pool_var_count_ = 0;
   /*! \brief This toggles to remove non tvmscript printable items for IRModule for unit tests */
   bool emit_tvmscript_printable_ = false;
-
   /*! \brief This controls if pool vars are passed as parameters or allocated with alloc_storage */
   bool insert_storage_allocations_ = true;
 
@@ -484,7 +484,7 @@ class RelaxPoolAllocationToOffsetConverter : public relax::ExprMutator {
    */
   Array<Expr> AppendPoolParamsToArgs(Array<Expr> args);
 
-  // Call to bound var map used to find the PoolAllocations in pool_allocations_.
+  /*! \brief Call to bound var map used to find the PoolAllocations in pool_allocations_. */
   Map<tvm::relay::Call, tvm::relax::Var> call_to_bound_var_;
 
   PoolAllocationsToOffsetsPassData pass_data_;
@@ -507,6 +507,7 @@ Expr RelaxPoolAllocationToOffsetConverter::VisitExpr_(const CallNode* op) {
   auto node = GetRef<Call>(op);
   static const Op& alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");
   if (op->op == alloc_tensor_op) {
+    // Lower relax.builtin.alloc_tensor to relax.memory.alloc_tensor + offset.
     if (pass_data_.pool_allocations_.count(call_to_bound_var_.Get(node).value())) {
       auto pool_allocation = pass_data_.pool_allocations_[call_to_bound_var_.Get(node).value()];
       static const Op& memory_alloc_tensor_op = Op::Get("relax.memory.alloc_tensor");
@@ -566,17 +567,14 @@ void RelaxPoolAllocationToOffsetConverter::VisitBinding_(const VarBindingNode* b
 
 tvm::usmp::PoolAllocationsToOffsetsPassData::ScopeInfo
 RelaxPoolAllocationToOffsetConverter::UpdateFunctionScopeInfo(const Function& original_func) {
+  using AllocatedPoolInfo = tir::usmp::AllocatedPoolInfo;
   ScopeInfo si;
   si.params = Array<BaseExpr>(original_func->params.begin(), original_func->params.end());
-  using AllocatedPoolInfo = tir::usmp::AllocatedPoolInfo;
   for (const AllocatedPoolInfo& allocated_pool_info : pass_data_.allocated_pool_ordering_) {
     PoolInfo pool_info = allocated_pool_info->pool_info;
-    int pool_size = pass_data_.all_pools_sizes_[pool_info];
     String pool_ref_name =
         pool_info->pool_name + "_" + std::to_string(pass_data_.pool_var_count_++);
     String var_name = pool_ref_name + "_pool";
-    DataType elem_dtype = DataType::Int(64);
-    IntImm shape_value = IntImm(elem_dtype, pool_size);
     Var pool_var = Var(var_name, {}, ObjectType());
     si.params.push_back(pool_var);
     si.pools_to_var.Set(pool_info, pool_var);
@@ -599,7 +597,7 @@ RelaxPoolAllocationToOffsetConverter::operator()() {
   for (BaseExpr base_expr : si.params) {
     params.push_back(runtime::Downcast<Var>(base_expr));
   }
-  // We dont need attrs of PrimFunc that might include non printable attrs such as target
+  // We dont need attrs of Function that might include non printable attrs
   // for unit tests where emit_tvmscript_printable_ is to be used.
   if (!pass_data_.emit_tvmscript_printable_) {
     main_func = Function(params, main_func_body, main_func->ret_type, main_func->ret_shape,
@@ -611,6 +609,8 @@ RelaxPoolAllocationToOffsetConverter::operator()() {
     main_func = WithAttr(main_func, tvm::attr::kGlobalSymbol, String("main"));
   }
   pass_data_.module_->Update(gv, main_func);
+  // TODO(gigiblender): I do not think kPoolArgs is used at this stage so probably
+  //  we can remove it.
   if (!pass_data_.emit_tvmscript_printable_) {
     return {WithAttr(pass_data_.module_, tvm::attr::kPoolArgs, si.allocated_pools),
             tvm::usmp::PoolAllocationInserterPassData(si.allocated_pools)};
@@ -618,6 +618,9 @@ RelaxPoolAllocationToOffsetConverter::operator()() {
   return {pass_data_.module_, tvm::usmp::PoolAllocationInserterPassData(si.allocated_pools)};
 }
 
+/*! \brief Pass that moves the workspace memory pools from the parameters of the Relax main
+ * function to the body of the function using relax.memory.alloc_storage.
+ */
 class RelaxPoolAllocationInserter : public relax::ExprMutator {
   using PoolAllocationsToOffsetsPassData = tvm::usmp::PoolAllocationsToOffsetsPassData;
   using PoolAllocationInserterPassData = tvm::usmp::PoolAllocationInserterPassData;
