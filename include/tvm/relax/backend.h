@@ -44,6 +44,14 @@ TVM_DLL Pass VMMemoryLower();
  */
 TVM_DLL Pass VMShapeLower();
 
+/*!
+ * \brief Perform memory lowering in AOT. Lowers the relax.builtin.alloc_tensor intrinsic to
+ * relax.memory.* intrinsics.
+ *
+ * \return The Pass.
+ */
+TVM_DLL Pass AOTMemoryLower();
+
 }  // namespace transform
 }  // namespace relax
 }  // namespace tvm

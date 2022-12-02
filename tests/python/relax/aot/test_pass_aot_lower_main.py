@@ -124,7 +124,11 @@ def test_multi_input():
     @tvm.script.ir_module
     class MultiInput:
         @R.function
-        def main(a: R.Tensor((5, 7), "float32"), b: R.Tensor((5, 7), "float32"), output: R.Tensor((5, 7), "float32")):
+        def main(
+            a: R.Tensor((5, 7), "float32"),
+            b: R.Tensor((5, 7), "float32"),
+            output: R.Tensor((5, 7), "float32"),
+        ):
             R.func_attr({"input_vars": [a, b], "output_vars": [output]})
             tid_0 = output
             _ = R.call_packed("add", a, b, tid_0, type_args=R.Tensor(ndim=2, dtype="float32"))
@@ -149,11 +153,17 @@ def test_multi_output():
     @tvm.script.ir_module
     class MultiOutput:
         @R.function
-        def main(a: R.Tensor((5, 7), "float32"), output_0: R.Tensor((5, 7), "float32"), output_1: R.Tensor((5, 7), "float32")):
+        def main(
+            a: R.Tensor((5, 7), "float32"),
+            output_0: R.Tensor((5, 7), "float32"),
+            output_1: R.Tensor((5, 7), "float32"),
+        ):
             R.func_attr({"input_vars": [a], "output_vars": [output_0, output_1]})
             tid_0 = output_0
             tid_1 = output_1
-            _ = R.call_packed("duplicate", a, tid_0, tid_1, type_args=R.Tensor(ndim=2, dtype="float32"))
+            _ = R.call_packed(
+                "duplicate", a, tid_0, tid_1, type_args=R.Tensor(ndim=2, dtype="float32")
+            )
             return ()
 
     # fmt: off
@@ -202,7 +212,9 @@ def test_tuple_get_item():
         def main(a: R.Tensor((5, 7), "float32"), output: R.Tensor((5, 7), "float32")):
             R.func_attr({"input_vars": [a], "output_vars": [output]})
             tup = (a, a)
-            _ = R.call_packed("identity", tup[1], output, type_args=R.Tensor(ndim=2, dtype="float32"))
+            _ = R.call_packed(
+                "identity", tup[1], output, type_args=R.Tensor(ndim=2, dtype="float32")
+            )
             return ()
 
     # fmt: off
@@ -235,7 +247,9 @@ def test_branch():
             tid_2 = R.memory.alloc_tensor(alloc_2, (5, 7), offset=0, dtype="float32")
             _ = R.call_packed("identity", tid_0, tid_2, type_args=R.Tensor(ndim=2, dtype="float32"))
             tid_3 = output
-            _ = R.call_packed("add", tid_1, tid_2, tid_3, type_args=R.Tensor(ndim=2, dtype="float32"))
+            _ = R.call_packed(
+                "add", tid_1, tid_2, tid_3, type_args=R.Tensor(ndim=2, dtype="float32")
+            )
             return ()
 
     # fmt: off
@@ -268,9 +282,17 @@ def test_device_hooks():
     @tvm.script.ir_module
     class DeviceHooks:
         @T.prim_func
-        def identity(a: T.handle, output: T.handle, device_context_example_target_hook: T.handle) -> None:
+        def identity(
+            a: T.handle, output: T.handle, device_context_example_target_hook: T.handle
+        ) -> None:
             # function attr dict
-            T.func_attr({"global_symbol": "identity", "runner_function": True, "target": T.target({"kind":"llvm", "tag":"", "keys":["cpu"]})})
+            T.func_attr(
+                {
+                    "global_symbol": "identity",
+                    "runner_function": True,
+                    "target": T.target({"kind": "llvm", "tag": "", "keys": ["cpu"]}),
+                }
+            )
             a_buffer = T.match_buffer(a, [5, 7], dtype="float32", align=16)
             output_buffer = T.match_buffer(output, [5, 7], dtype="float32", align=16)
             # body

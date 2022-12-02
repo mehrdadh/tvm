@@ -58,7 +58,7 @@ class AOTMainLowerer : public ExprVisitor {
 
   IRModule Lower(IRModule mod, String mod_name) {
     IRModule lowered_mod = GetRef<IRModule>(mod.CopyOnWrite());
-  
+
     auto lowered_main = lowered_mod->Lookup("main");
     auto lowered_main_func = GetRef<Function>(lowered_main.as<FunctionNode>());
 
@@ -76,7 +76,7 @@ class AOTMainLowerer : public ExprVisitor {
                                .value_or(Map<GlobalVar, String>()));
 
     VisitExpr(lowered_main_func);
-  
+
     // Remove the Relay main and replace it with the lowered TIR version
     mod->Remove(lowered_mod->GetGlobalVar("main"));
     auto tir_main_func = CreateMainFunc(mod_name);

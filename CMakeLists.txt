@@ -291,6 +291,7 @@ tvm_file_glob(GLOB_RECURSE COMPILER_SRCS
     src/relax/analysis/*.cc
     src/relax/usmp/*.cc
     src/relax/transform/*.cc
+    src/relax/backend/aot/*.cc
     src/relax/backend/vm/*.cc
     src/relax/backend/aot/*.cc
     src/relax/backend/task_extraction.cc

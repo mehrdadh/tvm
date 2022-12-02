@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, redefined-builtin, no-else-return
-"""The Relax virtual machine"""
+"""The Relax AOT executor"""
 from typing import Callable, List, Optional, Union, Dict
 
 import tvm
@@ -63,7 +63,7 @@ def build(
     if not isinstance(ir_mod, IRModule):
         raise ValueError("Type of input parameter mod must be tvm.IRModule")
 
-    ctxt = tvm.transform.PassContext()
+    ctxt = tvm.transform.PassContext.current()
     config = make_compilation_config(ctxt, target, target_host)
 
     ir_mod = lower(ir_mod)

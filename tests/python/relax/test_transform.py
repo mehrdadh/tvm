@@ -322,6 +322,41 @@ def test_call_tir_rewrite():
     assert s2.op.global_symbol == "test.op.identity"
 
 
+def test_aot_memory_lower():
+    # fmt:off
+    @tvm.script.ir_module
+    class TestAOTMemoryLower:
+        @R.function
+        def foo(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor:
+            m, n = T.var("int64"), T.var("int64")
+            alloc = R.builtin.alloc_tensor((m, n), runtime_device_index=0, dtype="float32")
+            _ = R.call_packed("test.op.identity", x, alloc, type_args=(R.Tensor(ndim=2, dtype="float32")))
+            gv0 = alloc
+            return gv0
+    # fmt:on
+
+    mod = TestAOTMemoryLower
+
+    # after aot memory lowering
+    new_mod = relax.transform.AOTMemoryLower()(mod)
+    func = new_mod["foo"]
+
+    assert isinstance(new_mod, tvm.IRModule)
+    assert isinstance(func, tvm.relax.expr.Function)
+
+    block = func.body.blocks[0]
+    s1 = block.bindings[0].value
+    assert isinstance(s1, tvm.relay.Call)
+    assert s1.op.name == "relax.memory.alloc_storage"
+    s2 = block.bindings[1].value
+    assert isinstance(s2, tvm.relay.Call)
+    assert s2.op.name == "relax.memory.alloc_tensor"
+    s3 = block.bindings[2].value
+    assert isinstance(s3, tvm.relay.Call)
+    assert isinstance(s3.op, relax.ExternFunc)
+    assert s3.op.global_symbol == "test.op.identity"
+
+
 def test_vm_memory_lower():
     @tvm.script.ir_module
     class TestVMMemoryLower:
