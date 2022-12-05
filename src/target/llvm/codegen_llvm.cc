@@ -1784,7 +1784,11 @@ void CodeGenLLVM::VisitStmt_(const AllocateConstNode* op) {
   llvm::GlobalVariable* param_symbol = new llvm::GlobalVariable(
       *module_, array->getType(), true, llvm::GlobalValue::InternalLinkage, array, symbol_name);
 
+#if TVM_LLVM_VERSION >= 100
   param_symbol->setAlignment(llvm::Align(data.DataType().bits()));
+#else
+  param_symbol->setAlignment(data.DataType().bits());
+#endif
   var_map_[op->buffer_var.operator->()] = param_symbol;
   this->VisitStmt(op->body);
 }
