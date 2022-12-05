@@ -123,12 +123,18 @@ class ConvertRelaxMainToDPS : public ExprMutator {
     for (auto iter = block->bindings.rbegin(); iter != block->bindings.rend(); iter++) {
       Binding binding = *iter;
       if (const auto* var_binding = binding.as<VarBindingNode>()) {
-        if (var_binding->value->IsInstance<VarNode>() &&
-            return_alias_.count(var_binding->var) > 0) {
-          // Alias. Update alias map and do not emit binding.
-          return_alias_[runtime::Downcast<Var>(var_binding->value)] =
-              return_alias_[var_binding->var];
-          continue;
+        if (var_binding->value->IsInstance<VarNode>()) {
+          if (return_alias_.count(var_binding->var) > 0) {
+            // Alias. Update alias map and do not emit binding.
+            return_alias_[runtime::Downcast<Var>(var_binding->value)] =
+                return_alias_[var_binding->var];
+            continue;
+          }
+          if (return_alias_.count(var_binding->var) == 0
+              && return_alias_.count(var_binding->value) > 0) {
+            // Creating an alias for a dead var. Do not emit binding.
+            continue;
+          }
         }
 
         if (var_binding->value->IsInstance<relay::TupleNode>() &&

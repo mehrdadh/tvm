@@ -68,6 +68,7 @@ runtime::Module Build(IRModule mod, String mod_name, CompilationConfig config, r
   mod = relax::transform::UnifiedStaticMemoryPlanner()(mod);
   mod = AOTLowerMain(mod_name, config)(mod);
   mod = tir::transform::LegalizePackedCalls()(mod);
+  mod = tir::transform::TIRFuncRename()(mod);
 
   auto lowered_funcs = tvm::relay::tec::GetPerTargetModules(mod);
   auto exec_metadata = tvm::relay::backend::aot::CreateExecutorMetadata(mod, mod_name, executor, workspace_byte_alignment,
