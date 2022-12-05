@@ -35,7 +35,8 @@ def _export_mod(mod):
     return tvm.runtime.load_module(test_so_path)
 
 
-def test_single_elementwise():
+@pytest.mark.parametrize("enable_usmp", [True, False])
+def test_single_elementwise(enable_usmp):
     dtype = "int32"
     target = "llvm"
     inputs = {"x": np.array([[-10, 5], [1, 2]], dtype=dtype)}
@@ -48,13 +49,14 @@ def test_single_elementwise():
     def _reference(inputs):
         x = inputs["x"]
         return np.abs(x)  # abs
-    
+
     relax_mod = relay_translator.from_relay(
         _relay(),
         target,
     )
 
-    mod = build(relax_mod, target)
+    with tvm.transform.PassContext(config={"relax.usmp.enable": enable_usmp}):
+        mod = build(relax_mod, target)
     loaded_mod = _export_mod(mod)
     runner = tvm.runtime.executor.AotModule(loaded_mod["default"](tvm.cpu(0)))
     runner.set_input(**inputs)
@@ -62,7 +64,8 @@ def test_single_elementwise():
     assert (runner.get_output(0).numpy() == _reference(inputs)).all()
 
 
-def test_scalar_constant():
+@pytest.mark.parametrize("enable_usmp", [True, False])
+def test_scalar_constant(enable_usmp):
     dtype = "int32"
     target = "llvm"
     inputs = {"x": np.array([[-10, 5], [1, 2]], dtype=dtype)}
@@ -75,13 +78,14 @@ def test_scalar_constant():
     def _reference(inputs):
         x = inputs["x"]
         return np.add(x, -1)  # add
-    
+
     relax_mod = relay_translator.from_relay(
         _relay(),
         target,
     )
 
-    mod = build(relax_mod, target)
+    with tvm.transform.PassContext(config={"relax.usmp.enable": enable_usmp}):
+        mod = build(relax_mod, target)
     loaded_mod = _export_mod(mod)
     runner = tvm.runtime.executor.AotModule(loaded_mod["default"](tvm.cpu(0)))
     runner.set_input(**inputs)
@@ -89,7 +93,8 @@ def test_scalar_constant():
     assert (runner.get_output(0).numpy() == _reference(inputs)).all()
 
 
-def test_tensor_constant():
+@pytest.mark.parametrize("enable_usmp", [True, False])
+def test_tensor_constant(enable_usmp):
     dtype = "int32"
     target = "llvm"
     inputs = {"x": np.array([[-10, 1], [5, 1]], dtype=dtype)}
@@ -102,13 +107,14 @@ def test_tensor_constant():
     def _reference(inputs):
         x = inputs["x"]
         return np.add(x, np.array([[1, 2], [3, 4]]))  # add
-    
+
     relax_mod = relay_translator.from_relay(
         _relay(),
         target,
     )
 
-    mod = build(relax_mod, target)
+    with tvm.transform.PassContext(config={"relax.usmp.enable": enable_usmp}):
+        mod = build(relax_mod, target)
     loaded_mod = _export_mod(mod)
     runner = tvm.runtime.executor.AotModule(loaded_mod["default"](tvm.cpu(0)))
     runner.set_input(**inputs)
@@ -116,10 +122,14 @@ def test_tensor_constant():
     assert (runner.get_output(0).numpy() == _reference(inputs)).all()
 
 
-def test_multi_input():
+@pytest.mark.parametrize("enable_usmp", [True, False])
+def test_multi_input(enable_usmp):
     dtype = "int32"
     target = "llvm"
-    inputs = {"x": np.array([[-10, 1], [5, 1]], dtype=dtype), "y": np.array([[1, 2], [3, 4]], dtype=dtype)}
+    inputs = {
+        "x": np.array([[-10, 1], [5, 1]], dtype=dtype),
+        "y": np.array([[1, 2], [3, 4]], dtype=dtype),
+    }
 
     def _relay():
         x = relay.var("x", shape=(2, 2), dtype=dtype)
@@ -131,13 +141,14 @@ def test_multi_input():
         x = inputs["x"]
         y = inputs["y"]
         return np.add(x, y)  # add
-    
+
     relax_mod = relay_translator.from_relay(
         _relay(),
         target,
     )
 
-    mod = build(relax_mod, target)
+    with tvm.transform.PassContext(config={"relax.usmp.enable": enable_usmp}):
+        mod = build(relax_mod, target)
     loaded_mod = _export_mod(mod)
     runner = tvm.runtime.executor.AotModule(loaded_mod["default"](tvm.cpu(0)))
     runner.set_input(**inputs)
@@ -145,7 +156,8 @@ def test_multi_input():
     assert (runner.get_output(0).numpy() == _reference(inputs)).all()
 
 
-def test_multi_output():
+@pytest.mark.parametrize("enable_usmp", [True, False])
+def test_multi_output(enable_usmp):
     dtype = "int32"
     target = "llvm"
     inputs = {"x": np.array([[-10, 1], [5, 1]], dtype=dtype)}
@@ -159,16 +171,17 @@ def test_multi_output():
 
     def _reference(inputs):
         x = inputs["x"]
-        abs =  np.abs(x)  # abs
+        abs = np.abs(x)  # abs
         out = abs - 1
         return [abs, out]
-    
+
     relax_mod = relay_translator.from_relay(
         _relay(),
         target,
     )
 
-    mod = build(relax_mod, target)
+    with tvm.transform.PassContext(config={"relax.usmp.enable": enable_usmp}):
+        mod = build(relax_mod, target)
     loaded_mod = _export_mod(mod)
     runner = tvm.runtime.executor.AotModule(loaded_mod["default"](tvm.cpu(0)))
     runner.set_input(**inputs)

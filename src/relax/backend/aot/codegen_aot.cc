@@ -30,6 +30,7 @@
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/runtime.h>
 #include <tvm/relax/transform.h>
+#include <tvm/relax/backend.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/object.h>
 #include <tvm/tir/analysis.h>
@@ -39,6 +40,7 @@
 #include <tvm/tir/stmt.h>
 #include <tvm/tir/transform.h>
 #include <tvm/tir/usmp/utils.h>
+#include <tvm/relax/usmp/utils.h>
 #include <tvm/relay/executor.h>
 #include <tvm/relay/runtime.h>
 
@@ -64,8 +66,15 @@ runtime::Module Build(IRModule mod, String mod_name, CompilationConfig config, r
   Integer constant_byte_alignment =
       executor->GetAttr<Integer>("constant-byte-alignment").value_or(16);
 
+  transform::PassContext pass_ctx = transform::PassContext::Current();
+  bool enable_usmp = pass_ctx->GetConfig<Bool>(kUSMPRelaxEnableOption, Bool(false)).value();
+
   mod = LowerModule(mod);
-  mod = relax::transform::UnifiedStaticMemoryPlanner()(mod);
+  if (enable_usmp) {
+    mod = relax::transform::UnifiedStaticMemoryPlanner()(mod);
+  } else {
+    mod = relax::transform::AOTMemoryLower()(mod);
+  }
   mod = AOTLowerMain(mod_name, config)(mod);
   mod = tir::transform::LegalizePackedCalls()(mod);
 
