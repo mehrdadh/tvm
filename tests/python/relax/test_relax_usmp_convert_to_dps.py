@@ -235,6 +235,57 @@ def test_tuple_both_alloc():
 
 # fmt: off
 @tvm.script.ir_module
+class TestTupleBothAllocDeadCode:
+    @R.function
+    def main(input: R.Tensor((16, 16), "uint8")) -> R.Tuple(R.Tensor(None, "float32", ndim = 2), R.Tensor(None, "int32", ndim = 2)):
+        # block 0
+        tsid_11 = R.builtin.alloc_tensor((1, 1), dtype="int8", runtime_device_index=0)
+        alloc = R.builtin.alloc_tensor((5, 7), dtype="float32", runtime_device_index=0)
+        _ = R.call_packed("prim_func_2", input, tsid_11, alloc, type_args=(R.Tensor(ndim=2, dtype="float32")))
+        output_1 = alloc
+
+        alloc1 = R.builtin.alloc_tensor((5, 7), dtype="int8", runtime_device_index=0)
+        _1 = R.call_packed("prim_func_3", input, alloc, alloc1, type_args=(R.Tensor(ndim=2, dtype="int8")))
+        lv0 = alloc1
+
+        tsid_12 = R.builtin.alloc_tensor((1, 1), dtype="int8", runtime_device_index=0)
+        alloc2 = R.builtin.alloc_tensor((802816, 1), dtype="int32", runtime_device_index=0)
+        _2 = R.call_packed("prim_func_1", input, lv0, tsid_12, alloc2, type_args=(R.Tensor(ndim=2, dtype="int32")))
+        output_2 = alloc2
+        output = (alloc, alloc2)
+        gv = output
+        return output
+
+
+@tvm.script.ir_module
+class TestTupleBothAllocDeadCodeExpected:
+    @R.function
+    def main(input: R.Tensor((16, 16), "uint8"), alloc: R.Tensor((5, 7), "float32"), alloc2: R.Tensor((802816, 1), "int32")):
+        # block 0
+        tsid_11 = R.builtin.alloc_tensor((1, 1), dtype="int8", runtime_device_index=0)
+        _ = R.call_packed("prim_func_2", input, tsid_11, alloc, type_args=(R.Tensor(ndim=2, dtype="float32")))
+        alloc1 = R.builtin.alloc_tensor((5, 7), dtype="int8", runtime_device_index=0)
+        _1 = R.call_packed("prim_func_3", input, alloc, alloc1, type_args=(R.Tensor(ndim=2, dtype="int8")))
+        lv0 = alloc1
+        tsid_12 = R.builtin.alloc_tensor((1, 1), dtype="int8", runtime_device_index=0)
+        _2 = R.call_packed("prim_func_1", input, lv0, tsid_12, alloc2, type_args=(R.Tensor(ndim=2, dtype="int32")))
+        return R.Tuple()
+
+# fmt: on
+
+
+def test_tuple_both_alloc_dead_code():
+    before_mod = TestTupleBothAllocDeadCode
+    after_mod = tvm.relax.transform.ConvertRelaxMainToDPS(attach_io_to_attrs=False)(before_mod)
+    expected_mod = TestTupleBothAllocDeadCodeExpected
+    for gv, ref_func in expected_mod.functions.items():
+        actual_func = after_mod[gv.name_hint]
+        assert str(actual_func) == str(ref_func)
+        # tvm.ir.assert_structural_equal(actual_func, ref_func)
+
+
+# fmt: off
+@tvm.script.ir_module
 class TestTupleOneAllocOneParam:
     @R.function
     def main(input: R.Tensor((16, 16), "uint8")) -> R.Tuple(R.Tensor(None, "uint8", ndim = 2), R.Tensor(None, "int32", ndim = 2)):

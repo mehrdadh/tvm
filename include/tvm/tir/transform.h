@@ -696,6 +696,12 @@ TVM_DLL Pass ManifestSharedMemoryLocalStage();
  */
 TVM_DLL Pass InstrumentProfileIntrinsics();
 
+/*!
+ * \brief Mangle TIR function names by appending a prefix to avoid symbol collisions.
+ * \return The pass.
+ */
+TVM_DLL Pass TIRFuncRename();
+
 }  // namespace transform
 }  // namespace tir
 }  // namespace tvm
