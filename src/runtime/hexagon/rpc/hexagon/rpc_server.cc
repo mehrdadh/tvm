@@ -182,6 +182,10 @@ class HexagonRPCServer {
   explicit HexagonRPCServer(uint8_t* receive_buffer, size_t receive_buffer_size_bytes)
       : io_{receive_buffer, receive_buffer_size_bytes}, rpc_server_{&io_} {};
 
+  ~HexagonRPCServer() {
+    LOG(ERROR) << "mehrdad: ~HexagonRPCServer called.";
+  }
+
   /*!
    * \brief Wrtie to IOHandler.
    * \param data The data pointer

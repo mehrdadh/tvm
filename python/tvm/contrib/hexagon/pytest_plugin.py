@@ -292,6 +292,8 @@ def hexagon_session(hexagon_launcher: HexagonLauncherRPC) -> Session:
     else:
         with hexagon_launcher.create_session() as session:
             yield session
+    import pdb; pdb.set_trace()
+    print("")
 
 
 # If the execution aborts while an RPC server is running, the python
@@ -309,7 +311,7 @@ def terminate_rpc_servers():
         os.system("ps ax | grep tvm_rpc_x86 | awk '{print $1}' | xargs kill")
 
 
-aot_host_target = tvm.testing.parameter("c", HEXAGON_AOT_LLVM_TARGET)
+aot_host_target = tvm.testing.parameter(HEXAGON_AOT_LLVM_TARGET)
 
 
 @tvm.testing.fixture

@@ -248,8 +248,10 @@ class Session:
         GraphModule :
             Runtime graph module that can be used to execute the graph.
         """
-        aot_mod = self.load_module(module_file)
-        return tvm.runtime.executor.AotModule(aot_mod["default"](self.device))
+        # TODO(mehrdadh): We had to keep a reference of the aot module to avoid 
+        # closing the RPC session. This is the bug that we need to fix.
+        self.aot_mod = self.load_module(module_file)
+        return tvm.runtime.executor.AotModule(self.aot_mod["default"](self.device))
 
     def get_graph_debug_executor(
         self,

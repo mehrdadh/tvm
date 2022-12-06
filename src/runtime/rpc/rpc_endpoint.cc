@@ -706,9 +706,12 @@ std::shared_ptr<RPCEndpoint> RPCEndpoint::Create(std::unique_ptr<RPCChannel> cha
   return endpt;
 }
 
-RPCEndpoint::~RPCEndpoint() { this->Shutdown(); }
+// RPCEndpoint::~RPCEndpoint() { this->Shutdown(); }
+RPCEndpoint::~RPCEndpoint() { return; }
 
 void RPCEndpoint::Shutdown() {
+  LOG(ERROR) << "mehrdad: shutdown called";
+
   if (channel_ != nullptr) {
     RPCCode code = RPCCode::kShutdown;
     uint64_t packet_nbytes = sizeof(code);
@@ -1129,7 +1132,10 @@ class RPCClientSession : public RPCSession, public DeviceAPI {
 
   bool IsLocalSession() const final { return false; }
 
-  void Shutdown() final { endpoint_->Shutdown(); }
+  void Shutdown() final { 
+    LOG(ERROR) << "mehrdad: inside Shutdown";
+    endpoint_->Shutdown(); 
+    }
 
  private:
   uint64_t GetRPCMaxTransferSize() {
