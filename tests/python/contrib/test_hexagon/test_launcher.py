@@ -26,6 +26,8 @@ from tvm.contrib.hexagon.session import Session
 from tvm.relay.backend import Executor, Runtime
 from tvm.contrib.hexagon.build import HexagonLauncherRPC
 from tvm.contrib.hexagon.hexagon_profiler import HexagonProfiler
+from tvm.relax.testing import relay_translator
+from tvm.relax.aot import build
 
 from .infrastructure import get_hexagon_target
 
@@ -725,6 +727,74 @@ def test_lwp_multiple_conv2d(
 
     tvm.testing.assert_allclose(hexagon_output, expected_output, rtol=1e-4, atol=1e-5)
 
+@tvm.testing.requires_hexagon
+@pytest.mark.parametrize("enable_usmp", [True, False])
+def test_multi_output(hexagon_session: Session, aot_host_target, aot_target, enable_usmp):
+    dtype = "int32"
+    target = tvm.target.Target(aot_target, host=aot_host_target)
+    inputs = {"x": np.array([[-10, 1], [5, 1]], dtype=dtype)}
+
+    def _relay():
+        x = relay.var("x", shape=(2, 2), dtype=dtype)
+        abs = relay.abs(x)
+        out = relay.subtract(abs, relay.const(1))
+        out = relay.Tuple([abs, out])
+        return relay.Function(relay.analysis.free_vars(out), out)
+
+    def _reference(inputs):
+        x = inputs["x"]
+        abs = np.abs(x)  # abs
+        out = abs - 1
+        return [abs, out]
+
+    relax_mod = relay_translator.from_relay(
+        _relay(),
+        target,
+    )
+
+    with tvm.transform.PassContext(config={"relax.usmp.enable": enable_usmp}):
+        lowered = build(relax_mod, target)
+
+    aot_mod = hexagon_session.get_executor_from_factory(lowered)
+    aot_mod.set_input(**inputs)
+    aot_mod.run()
+
+    for i, ref in enumerate(_reference(inputs)):
+        assert (aot_mod.get_output(i).numpy() == ref).all()
+
+@tvm.testing.requires_hexagon
+@pytest.mark.parametrize("enable_usmp", [True, False])
+def test_multi_input(hexagon_session: Session, aot_host_target, aot_target, enable_usmp):
+    dtype = "int32"
+    target = tvm.target.Target(aot_target, host=aot_host_target)
+    inputs = {
+        "x": np.array([[-10, 1], [5, 1]], dtype=dtype),
+        "y": np.array([[1, 2], [3, 4]], dtype=dtype),
+    }
+
+    def _relay():
+        x = relay.var("x", shape=(2, 2), dtype=dtype)
+        y = relay.var("y", shape=(2, 2), dtype=dtype)
+        out = relay.add(x, y)
+        return relay.Function(relay.analysis.free_vars(out), out)
+
+    def _reference(inputs):
+        x = inputs["x"]
+        y = inputs["y"]
+        return np.add(x, y)  # add
+    
+    relax_mod = relay_translator.from_relay(
+        _relay(),
+        target,
+    )
+
+    with tvm.transform.PassContext(config={"relax.usmp.enable": enable_usmp}):
+        mod = build(relax_mod, target)
+
+    runner = hexagon_session.get_executor_from_factory(mod)
+    runner.set_input(**inputs)
+    runner.run()
+    assert (runner.get_output(0).numpy() == _reference(inputs)).all()
 
 if __name__ == "__main__":
     tvm.testing.main()

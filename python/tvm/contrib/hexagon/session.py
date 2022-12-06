@@ -301,6 +301,8 @@ class Session:
             return self._graph_executor_from_factory(module)
         if isinstance(module, relax.vm.Executable):
             return self._relax_vm_executable_executor(module)
+        if isinstance(module, tvm.runtime.module.Module):
+            return self._relax_aot_executor(module)
 
         raise TypeError(f"Unsupported executor type: {type(module)}")
 
@@ -414,7 +416,6 @@ class Session:
             for target in module.target
             if "hexagon" in target.keys
         )
-
         self._set_device_type(module)
 
         for target in module.target:
@@ -450,6 +451,37 @@ class Session:
 
         return self.get_aot_executor(remote_file_path)
 
+    def _relax_aot_executor(self, module: tvm.runtime.module.Module):
+        hexagon_arch = "v68"
+        self._requires_cpu_device = True
+        target_type = "llvm"
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_dir = pathlib.Path(temp_dir)
+            binary_name = "test_binary.so"
+            binary_path = temp_dir / binary_name
+
+            if target_type == "hexagon":
+                module.export_library(
+                    str(binary_path),
+                    fcompile=hexagon.create_aot_shared,
+                    hexagon_arch=hexagon_arch,
+                )
+            elif target_type == "llvm":
+                module.export_library(
+                    str(binary_path),
+                    cc=hexagon.hexagon_clang_plus(),
+                )
+            else:
+                raise ValueError(
+                    f"Incorrect Target kind.\n"
+                    f"Target kind should be from these options: [hexagon, llvm]."
+                )
+
+            remote_file_path = self.upload(binary_path, binary_name)
+
+        return self.get_aot_executor(remote_file_path)
+    
     def get_profile_output(self, mode: str, path: str):
         assert isinstance(mode, str), f"Invalid mode type, {type(mode)} != str"
         assert isinstance(path, str), f"Invalid path type, {type(path)} != str"

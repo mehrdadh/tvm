@@ -76,6 +76,7 @@ runtime::Module Build(IRModule mod, String mod_name, CompilationConfig config, r
     mod = relax::transform::AOTMemoryLower()(mod);
   }
   mod = AOTLowerMain(mod_name, config)(mod);
+
   mod = tir::transform::LegalizePackedCalls()(mod);
   mod = tir::transform::TIRFuncRename()(mod);
 
