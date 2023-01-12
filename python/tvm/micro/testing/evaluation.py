@@ -91,17 +91,18 @@ def tune_model(
 
 
 def create_aot_session(
-    platform,
-    board,
-    target,
+    platform: str,
+    board: str,
+    target: tvm.target.Target,
     mod,
     params,
     build_dir=Path(tempfile.mkdtemp()),
     tune_logs=None,
     timeout_override=None,
-    use_cmsis_nn=False,
-    project_options=None,
-    use_existing=False,
+    use_cmsis_nn: bool = False,
+    project_options: dict = None,
+    use_existing: bool = False,
+    enable_usmp: bool = False,
 ):
     """AOT-compiles and uploads a model to a microcontroller, and returns the RPC session"""
 
@@ -109,7 +110,10 @@ def create_aot_session(
     crt_runtime = tvm.relay.backend.Runtime("crt", {"system-lib": True})
 
     with ExitStack() as stack:
-        config = {"tir.disable_vectorize": True}
+        config = {
+            "tir.disable_vectorize": True,
+            "tir.usmp.enable": enable_usmp,
+        }
         if use_cmsis_nn:
             config["relay.ext.cmsisnn.options"] = {"mcpu": target.mcpu}
         stack.enter_context(tvm.transform.PassContext(opt_level=3, config=config))

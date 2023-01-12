@@ -22,6 +22,9 @@ import tvm.testing
 import tvm.relay as relay
 from tvm.relay.backend import Executor, Runtime
 from tvm.contrib import utils
+from tvm.contrib.download import download_testdata
+from tvm.micro.testing import create_aot_session, predict_labels_aot
+from tvm.micro.project_api import server
 
 from . import utils
 
@@ -148,6 +151,69 @@ def test_aot_executor(workspace_dir, board, microtvm_debug, use_fvp, serial_numb
 
     with _make_session(workspace_dir, board, mod, build_config, use_fvp, serial_number) as session:
         do_test()
+
+
+enable_usmp = tvm.testing.parameter(False, True)
+
+
+@tvm.testing.requires_micro
+@pytest.mark.skip_boards(["mps2_an521"])
+def test_model(workspace_dir, board, microtvm_debug, use_fvp, enable_usmp, serial_number):
+    model_url = "https://github.com/tlc-pack/web-data/raw/93ed36f3bef8e23318b516919fdc89cd6eab6aef/testdata/microTVM/model/visual_wake_word_quant.tflite"
+    model_path = download_testdata(model_url, "vww_96_int8.tflite", module="model")
+    input_shape = (1, 96, 96, 3)
+
+    # Import TFLite model
+    tflite_model_buf = open(model_path, "rb").read()
+    try:
+        import tflite
+
+        tflite_model = tflite.Model.GetRootAsModel(tflite_model_buf, 0)
+    except AttributeError:
+        import tflite.Model
+
+        tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model_buf, 0)
+
+    relay_mod, params = relay.frontend.from_tflite(
+        tflite_model, shape_dict={"input_1_int8": input_shape}, dtype_dict={"input_1_int8": "int8"}
+    )
+
+    sample_url = "https://github.com/tlc-pack/web-data/raw/93ed36f3bef8e23318b516919fdc89cd6eab6aef/testdata/microTVM/data/visual_wake_word_int8_1.npy"
+    sample_path = download_testdata(sample_url, "visual_wake_word_int8_1.npy", module="data")
+    sample = [np.load(sample_path)]
+
+    if board == "nrf5340dk_nrf5340_cpuapp":
+        config_main_stack_size = 4000
+    elif board == "nucleo_f746zg":
+        config_main_stack_size = 4000
+    elif board == "nucleo_l4r5zi":
+        config_main_stack_size = 4000
+    elif board == "stm32f746g_disco":
+        config_main_stack_size = 3000
+    elif board == "qemu_x86":
+        config_main_stack_size = 4000
+
+    project_options = {"serial_number": serial_number}
+
+    if config_main_stack_size:
+        project_options["config_main_stack_size"] = config_main_stack_size
+
+    target = tvm.micro.testing.get_target("zephyr", board)
+    with create_aot_session(
+        "zephyr",
+        board,
+        target,
+        relay_mod,
+        params,
+        build_dir=workspace_dir,
+        project_options=project_options,
+        enable_usmp=enable_usmp,
+    ) as session:
+        aot_executor = tvm.runtime.executor.aot_executor.AotModule(session.create_aot_executor())
+        predicted_labels, _ = zip(
+            *predict_labels_aot(session, aot_executor, sample, runs_per_sample=1)
+        )
+        assert predicted_labels[0] == 1
 
 
 if __name__ == "__main__":
