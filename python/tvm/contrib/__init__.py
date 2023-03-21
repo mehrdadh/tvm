@@ -20,3 +20,5 @@ Contrib API provides many useful not core features.
 Some of these are useful utilities to interact with
 thirdparty libraries and tools.
 """
+
+from .launcher import Launcher, get_launcher_lib_path
