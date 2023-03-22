@@ -21,4 +21,4 @@ Some of these are useful utilities to interact with
 thirdparty libraries and tools.
 """
 
-from .launcher import Launcher, get_launcher_lib_path
+from .launcher.launcher import Launcher
