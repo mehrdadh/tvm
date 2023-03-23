@@ -165,6 +165,8 @@ ALLOW_SPECIFIC_FILE = {
     # Hexagon
     "src/runtime/hexagon/rpc/android_bash.sh.template",
     "src/runtime/hexagon/profiler/lwp_handler.S",
+    # Launcher
+    "cmake/modules/launchers/rpc_server.sh.template",
 }
 
 

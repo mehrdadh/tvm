@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""X86_64 Architecture Launcher class. It does not support Windows/OS righ now."""
+"""X86_64 Architecture Launcher class. It does not support Windows/macOS righ now."""
 
 from pathlib import Path
 import os

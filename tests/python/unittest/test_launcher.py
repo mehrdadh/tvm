@@ -52,6 +52,7 @@ def test_copy_binaries():
 
 
 def test_workload():
+    """Test a relay workload"""
     data = tvm.relay.var("data", tvm.relay.TensorType((1, 3, 64, 64), "float32"))
     weight = tvm.relay.var("weight", tvm.relay.TensorType((8, 3, 5, 5), "float32"))
     y = tvm.relay.nn.conv2d(
