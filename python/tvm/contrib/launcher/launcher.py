@@ -59,7 +59,7 @@ def Launcher(
             rpc_info=rpc_info,
             **kwargs,
         )
-    elif launcher_type in ["x86_64", "x86", "x64"]:
+    elif launcher_type in ["x86_64", "x86", "x64", "x86_x64"]:
         return X86_64Launcher(
             remote_id=remote_id, launcher_type="x86_64", rpc_info=rpc_info, **kwargs
         )

@@ -162,7 +162,22 @@ class RPCLauncher(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def _prepare_rpc_script(self) -> dict:
-        """Prepare RPC script template variables."""
+        """Prepare RPC script template variables.
+
+        Implement this function to add extra steps before and after
+        executing tvm_rpc start command on the remote device. This is
+        an optional abstract function.
+
+        Returns
+        -------
+        Optional[dict]:
+            A dictionary of command before and after the rpc starts.
+            This is optional in case no extra steps is required in a
+            remote target. Here are the expected keys in this dictionary:
+            - BEFORE_SERVER_START
+            - AFTER_SERVER_START
+        """
+        ...
 
     @abc.abstractmethod
     def _copy_extras(self):
